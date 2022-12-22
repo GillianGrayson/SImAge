@@ -1,0 +1,19 @@
+# @package _global_
+
+# specify here defaults
+defaults:
+  - _self_
+  - trainer: null
+  - model: null
+  - datamodule: null
+  - callbacks: null
+  - logger: none
+
+  - experiment: null
+  - hparams_search: null
+
+  - hydra: default.yaml
+
+  # enable color logging
+  - override hydra/hydra_logging: colorlog
+  - override hydra/job_logging: colorlog

@@ -1,0 +1,20 @@
+_target_: src.datamodules.tabular.TabularDataModule
+task: ${task}
+feats_con_fn: "${data_dir}/feats_con_${in_dim}.xlsx"
+feats_cat_fn: null
+feats_cat_encoding: label
+feats_cat_embed_dim: ${embed_dim}
+target: ${target}
+target_classes_fn: null
+data_fn: "${data_dir}/data.xlsx"
+data_index: index
+data_imputation: fast_knn
+split_by: trn_val # Options: [trn_val, top_feat, explicit_feat]
+split_trn_val: [0.80, 0.20]
+split_top_feat: null
+split_explicit_feat: Split
+batch_size: 512
+num_workers: 0
+pin_memory: False
+seed: ${seed}
+weighted_sampler: True
