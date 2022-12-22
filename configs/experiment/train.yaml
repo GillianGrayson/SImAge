@@ -25,7 +25,7 @@
 # Global params
 seed: 1337 # Random seed
 task: "regression" # Task type.
-model_type: "lightgbm" # Model type. All options are described in the beginning of the file.
+model_type: "widedeep_tab_mlp" # Model type. All options are described in the beginning of the file.
 target: "Age" # Target column name. Here we perform regression for chronological age.
 
 # Cross-validation params
@@ -68,62 +68,10 @@ num_top_features: 10 # Number of most important features to plot
 num_examples: 10 # Number of samples to plot some SHAP figures
 
 # Data params
-in_dim: 10 # Number of input features
+in_dim: 46 # Number of input features
 out_dim: 1 # Output dimension (can be more than 1 in multiclass classification problem)
 embed_dim: 16 # Default embedding dimension
 
-# Datamodule params
-datamodule:
-  _target_: src.datamodules.tabular.TabularDataModule
-  task: ${task}
-  feats_con_fn: "${data_dir}/feats_con_${in_dim}.xlsx"
-  feats_cat_fn: null
-  feats_cat_encoding: label
-  feats_cat_embed_dim: ${embed_dim}
-  target: ${target}
-  target_classes_fn: null
-  data_fn: "${data_dir}/data.xlsx"
-  data_index: index
-  data_imputation: fast_knn
-  split_by: trn_val # Options: [trn_val, top_feat, explicit_feat]
-  split_trn_val: [0.80, 0.20]
-  split_top_feat: null
-  split_explicit_feat: Split
-  batch_size: 512
-  num_workers: 0
-  pin_memory: False
-  seed: ${seed}
-  weighted_sampler: True
-
-# Trainer params
-trainer:
-  _target_: pytorch_lightning.Trainer
-  gpus: 1
-  min_epochs: 1
-  max_epochs: ${max_epochs}
-  weights_summary: null
-  progress_bar_refresh_rate: 0
-  resume_from_checkpoint: null
-
-# Callbacks params
-callbacks:
-  model_checkpoint:
-    _target_: pytorch_lightning.callbacks.ModelCheckpoint
-    monitor: "val/${optimized_metric}_pl" # name of the logged metric which determines when model is improving
-    mode: ${direction} # can be "max" or "min"
-    save_top_k: 1 # save k best models (determined by above metric)
-    save_last: False # additionally always save model from last epoch
-    verbose: False
-    dirpath: ""
-    filename: "best"
-    auto_insert_metric_name: False
-
-  early_stopping:
-    _target_: pytorch_lightning.callbacks.EarlyStopping
-    monitor: "val/${optimized_metric}_pl" # name of the logged metric which determines when model is improving
-    mode: ${direction} # can be "max" or "min"
-    patience: ${patience} # how many epochs of not improving until training stops
-    min_delta: 0 # minimum change in the monitored metric needed to qualify as an improvement
 
 # Model params
 model:

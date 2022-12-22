@@ -1,3 +1,10 @@
+early_stopping:
+  _target_: pytorch_lightning.callbacks.EarlyStopping
+  monitor: "val/${optimized_metric}_pl" # name of the logged metric which determines when model is improving
+  mode: ${direction} # can be "max" or "min"
+  patience: ${patience} # how many epochs of not improving until training stops
+  min_delta: 0 # minimum change in the monitored metric needed to qualify as an improvement
+
 model_checkpoint:
   _target_: pytorch_lightning.callbacks.ModelCheckpoint
   monitor: "val/${optimized_metric}_pl" # name of the logged metric which determines when model is improving

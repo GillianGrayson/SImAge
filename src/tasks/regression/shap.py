@@ -133,7 +133,7 @@ def explain_shap(config, expl_data):
                 shap_values=shap_values,
                 features=X,
                 feature_names=feature_names,
-                # max_display=config.num_top_features,
+                max_display=config.num_top_features,
                 plot_type="bar",
                 show=False,
             )
@@ -145,7 +145,7 @@ def explain_shap(config, expl_data):
                 shap_values=shap_values,
                 features=X,
                 feature_names=feature_names,
-                # max_display=config.num_top_features,
+                max_display=config.num_top_features,
                 plot_type="violin",
                 show=False,
             )
@@ -162,7 +162,7 @@ def explain_shap(config, expl_data):
             shap.plots.heatmap(
                 explanation,
                 show=False,
-                # max_display=config.num_top_features,
+                max_display=config.num_top_features,
                 instance_order=explanation.sum(1)
             )
             plt.savefig(f"shap/{part}/global/heatmap.png", bbox_inches='tight')

@@ -3,10 +3,10 @@
 # specify here defaults
 defaults:
   - _self_
-  - trainer: null
+  - trainer: gpu
   - model: null
-  - datamodule: null
-  - callbacks: null
+  - datamodule: tabular
+  - callbacks: default
   - logger: none
 
   - experiment: null
