@@ -49,7 +49,7 @@ def process_regression(config: DictConfig) -> Optional[float]:
         config.logger.wandb["project"] = config.project_name
 
     model_framework_dict = get_model_framework_dict()
-    model_framework = model_framework_dict[config.model_type]
+    model_framework = model_framework_dict[config.model.name]
 
     # Init lightning datamodule
     datamodule: TabularDataModule = hydra.utils.instantiate(config.datamodule)
@@ -107,18 +107,17 @@ def process_regression(config: DictConfig) -> Optional[float]:
 
         if model_framework == "pytorch":
             # Init lightning model
-            config.model = config[config.model_type]
             widedeep = datamodule.get_widedeep()
             embedding_dims = [(x[1], x[2]) for x in widedeep['cat_embed_input']] if widedeep['cat_embed_input'] else []
-            if config.model_type.startswith('widedeep'):
+            if config.model.name.startswith('widedeep'):
                 config.model.column_idx = widedeep['column_idx']
                 config.model.cat_embed_input = widedeep['cat_embed_input']
                 config.model.continuous_cols = widedeep['continuous_cols']
-            elif config.model_type.startswith('pytorch_tabular'):
+            elif config.model.name.startswith('pytorch_tabular'):
                 config.model.continuous_cols = feature_names['con']
                 config.model.categorical_cols = feature_names['cat']
                 config.model.embedding_dims = embedding_dims
-            elif config.model_type == 'nam':
+            elif config.model.name == 'nam':
                 num_unique_vals = [len(np.unique(X_trn[:, i])) for i in range(X_trn.shape[1])]
                 num_units = [min(config.model.num_basis_functions, i * config.model.units_multiplier) for i in num_unique_vals]
                 config.model.num_units = num_units
@@ -206,17 +205,17 @@ def process_regression(config: DictConfig) -> Optional[float]:
             feature_importances = model.get_feature_importance(X_trn, feature_names, config.feature_importance)
 
         elif model_framework == "stand_alone":
-            if config.model_type == "xgboost":
+            if config.model.name == "xgboost":
                 model_params = {
-                    'booster': config.xgboost.booster,
-                    'eta': config.xgboost.learning_rate,
-                    'max_depth': config.xgboost.max_depth,
-                    'gamma': config.xgboost.gamma,
-                    'sampling_method': config.xgboost.sampling_method,
-                    'subsample': config.xgboost.subsample,
-                    'objective': config.xgboost.objective,
-                    'verbosity': config.xgboost.verbosity,
-                    'eval_metric': config.xgboost.eval_metric,
+                    'booster': config.model.booster,
+                    'eta': config.model.learning_rate,
+                    'max_depth': config.model.max_depth,
+                    'gamma': config.model.gamma,
+                    'sampling_method': config.model.sampling_method,
+                    'subsample': config.model.subsample,
+                    'objective': config.model.objective,
+                    'verbosity': config.model.verbosity,
+                    'eval_metric': config.model.eval_metric,
                 }
 
                 dmat_trn = xgb.DMatrix(X_trn, y_trn, feature_names=feature_names['all'])
@@ -241,9 +240,9 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     y_tst_pred = model.predict(dmat_tst)
 
                 loss_info = {
-                    'epoch': list(range(len(evals_result['train'][config.xgboost.eval_metric]))),
-                    'trn/loss': evals_result['train'][config.xgboost.eval_metric],
-                    'val/loss': evals_result['val'][config.xgboost.eval_metric]
+                    'epoch': list(range(len(evals_result['train'][config.model.eval_metric]))),
+                    'trn/loss': evals_result['train'][config.model.eval_metric],
+                    'val/loss': evals_result['val'][config.model.eval_metric]
                 }
 
                 if config.feature_importance == "native":
@@ -279,17 +278,17 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     }
                 )
 
-            elif config.model_type == "catboost":
+            elif config.model.name == "catboost":
                 model_params = {
-                    'loss_function': config.catboost.loss_function,
-                    'learning_rate': config.catboost.learning_rate,
-                    'depth': config.catboost.depth,
-                    'min_data_in_leaf': config.catboost.min_data_in_leaf,
-                    'max_leaves': config.catboost.max_leaves,
-                    'task_type': config.catboost.task_type,
-                    'verbose': config.catboost.verbose,
-                    'iterations': config.catboost.max_epochs,
-                    'early_stopping_rounds': config.catboost.patience
+                    'loss_function': config.model.loss_function,
+                    'learning_rate': config.model.learning_rate,
+                    'depth': config.model.depth,
+                    'min_data_in_leaf': config.model.min_data_in_leaf,
+                    'max_leaves': config.model.max_leaves,
+                    'task_type': config.model.task_type,
+                    'verbose': config.model.verbose,
+                    'iterations': config.model.max_epochs,
+                    'early_stopping_rounds': config.model.patience
                 }
 
                 model = CatBoost(params=model_params)
@@ -340,20 +339,20 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     }
                 )
 
-            elif config.model_type == "lightgbm":
+            elif config.model.name == "lightgbm":
                 model_params = {
-                    'objective': config.lightgbm.objective,
-                    'boosting': config.lightgbm.boosting,
-                    'learning_rate': config.lightgbm.learning_rate,
-                    'num_leaves': config.lightgbm.num_leaves,
-                    'device': config.lightgbm.device,
-                    'max_depth': config.lightgbm.max_depth,
-                    'min_data_in_leaf': config.lightgbm.min_data_in_leaf,
-                    'feature_fraction': config.lightgbm.feature_fraction,
-                    'bagging_fraction': config.lightgbm.bagging_fraction,
-                    'bagging_freq': config.lightgbm.bagging_freq,
-                    'verbose': config.lightgbm.verbose,
-                    'metric': config.lightgbm.metric
+                    'objective': config.model.objective,
+                    'boosting': config.model.boosting,
+                    'learning_rate': config.model.learning_rate,
+                    'num_leaves': config.model.num_leaves,
+                    'device': config.model.device,
+                    'max_depth': config.model.max_depth,
+                    'min_data_in_leaf': config.model.min_data_in_leaf,
+                    'feature_fraction': config.model.feature_fraction,
+                    'bagging_fraction': config.model.bagging_fraction,
+                    'bagging_freq': config.model.bagging_freq,
+                    'verbose': config.model.verbose,
+                    'metric': config.model.metric
                 }
 
                 ds_trn = lightgbm.Dataset(X_trn, label=y_trn, feature_name=feature_names['all'])
@@ -377,9 +376,9 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     y_tst_pred = model.predict(X_tst, num_iteration=model.best_iteration).astype('float32')
 
                 loss_info = {
-                    'epoch': list(range(len(evals_result['train'][config.lightgbm.metric]))),
-                    'trn/loss': evals_result['train'][config.lightgbm.metric],
-                    'val/loss': evals_result['val'][config.lightgbm.metric]
+                    'epoch': list(range(len(evals_result['train'][config.model.metric]))),
+                    'trn/loss': evals_result['train'][config.model.metric],
+                    'val/loss': evals_result['val'][config.model.metric]
                 }
 
                 if config.feature_importance == "native":
@@ -413,12 +412,12 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     }
                 )
 
-            elif config.model_type == "elastic_net":
+            elif config.model.name == "elastic_net":
                 model = ElasticNet(
-                    alpha=config.elastic_net.alpha,
-                    l1_ratio=config.elastic_net.l1_ratio,
-                    max_iter=config.elastic_net.max_iter,
-                    tol=config.elastic_net.tol,
+                    alpha=config.model.alpha,
+                    l1_ratio=config.model.l1_ratio,
+                    max_iter=config.model.max_iter,
+                    tol=config.model.tol,
                 ).fit(X_trn, y_trn)
 
                 y_trn_pred = model.predict(X_trn).astype('float32')
@@ -464,7 +463,7 @@ def process_regression(config: DictConfig) -> Optional[float]:
                 )
 
             else:
-                raise ValueError(f"Model {config.model_type} is not supported")
+                raise ValueError(f"Model {config.model.name} is not supported")
 
         else:
             raise ValueError(f"Unsupported model_framework: {model_framework}")
@@ -546,25 +545,25 @@ def process_regression(config: DictConfig) -> Optional[float]:
                 best["model"] = model
                 best['loss_info'] = loss_info
 
-                if config.model_type == "xgboost":
+                if config.model.name == "xgboost":
                     def predict_func(X):
                         X = xgb.DMatrix(X, feature_names=feature_names['all'])
                         y = best["model"].predict(X)
                         return y
-                elif config.model_type == "catboost":
+                elif config.model.name == "catboost":
                     def predict_func(X):
                         y = best["model"].predict(X)
                         return y
-                elif config.model_type == "lightgbm":
+                elif config.model.name == "lightgbm":
                     def predict_func(X):
                         y = best["model"].predict(X, num_iteration=best["model"].best_iteration)
                         return y
-                elif config.model_type == "elastic_net":
+                elif config.model.name == "elastic_net":
                     def predict_func(X):
                         y = best["model"].predict(X)
                         return y
                 else:
-                    raise ValueError(f"Model {config.model_type} is not supported")
+                    raise ValueError(f"Model {config.model.name} is not supported")
 
             else:
                 raise ValueError(f"Unsupported model_framework: {model_framework}")
@@ -605,16 +604,16 @@ def process_regression(config: DictConfig) -> Optional[float]:
             os.remove(fn)
     elif model_framework == "stand_alone":
         eval_loss(best['loss_info'], None, is_log=True, is_save=False, file_suffix=f"_best_{best['fold']:04d}")
-        if config.model_type == "xgboost":
+        if config.model.name == "xgboost":
             best["model"].save_model(f"epoch_{best['model'].best_iteration}_best_{best['fold']:04d}.model")
-        elif config.model_type == "catboost":
+        elif config.model.name == "catboost":
             best["model"].save_model(f"epoch_{best['model'].best_iteration_}_best_{best['fold']:04d}.model")
-        elif config.model_type == "lightgbm":
+        elif config.model.name == "lightgbm":
             best["model"].save_model(f"epoch_{best['model'].best_iteration}_best_{best['fold']:04d}.model", num_iteration=best['model'].best_iteration)
-        elif config.model_type == "elastic_net":
+        elif config.model.name == "elastic_net":
             pickle.dump(best["model"], open(f"elastic_net_best_{best['fold']:04d}.pkl", 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
         else:
-            raise ValueError(f"Model {config.model_type} is not supported")
+            raise ValueError(f"Model {config.model.name} is not supported")
 
     y_trn = df.loc[df.index[datamodule.ids_trn], target_name].values
     y_trn_pred = df.loc[df.index[datamodule.ids_trn], "Estimation"].values

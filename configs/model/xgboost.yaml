@@ -1,0 +1,14 @@
+# XGBoost parameters available here:
+# [https://xgboost.readthedocs.io/en/stable/parameter.html]
+name: xgboost
+booster: 'gbtree'
+learning_rate: 0.05
+max_depth: 5
+gamma: 0
+sampling_method: 'uniform'
+subsample: 1
+objective: 'reg:squarederror'
+verbosity: 0
+eval_metric: 'mae'
+max_epochs: ${max_epochs}
+patience: ${patience}

@@ -1,0 +1,7 @@
+# Elastic Net parameters available here:
+# [https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.ElasticNet.html]
+name: elastic_net
+alpha: 15.0
+l1_ratio: 0.5
+max_iter: 100000
+tol: 1e-2

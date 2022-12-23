@@ -1,0 +1,43 @@
+# Parameters for widedeep models available here:
+# [https://pytorch-widedeep.readthedocs.io/en/latest/pytorch-widedeep/model_components.html]
+name: widedeep_saint
+_target_: src.models.tabular.widedeep.saint.WDSAINTModel
+task: regression
+loss_type: "L1Loss"
+input_dim: ${in_dim}
+output_dim: ${out_dim}
+optimizer_lr: 0.001
+optimizer_weight_decay: 0.0
+scheduler_step_size: 100
+scheduler_gamma: 0.8
+column_idx: null
+cat_embed_input: null
+cat_embed_dropout: 0.1
+use_cat_bias: False
+cat_embed_activation: null
+full_embed_dropout: False
+shared_embed: False
+add_shared_embed: False
+frac_shared_embed: 0.25
+continuous_cols: null
+cont_norm_layer: null
+cont_embed_dropout: 0.1
+use_cont_bias: True
+cont_embed_activation: null
+embed_dim: 8
+use_qkv_bias: False
+n_heads: 2
+n_blocks: 3
+attn_dropout: 0.1
+ff_dropout: 0.2
+transformer_activation: "gelu"
+mlp_hidden_dims:
+  - 200
+  - 100
+  - 50
+  - ${out_dim}
+mlp_activation: "relu"
+mlp_dropout: 0.1
+mlp_batchnorm: False
+mlp_batchnorm_last: False
+mlp_linear_first: True

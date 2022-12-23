@@ -3,13 +3,17 @@
 # specify here defaults
 defaults:
   - _self_
-  - trainer: gpu
-  - model: null
+  - experiment: train
   - datamodule: tabular
+  # model options:
+  # Linear: elastic_net
+  # GBDT: xgboost, lightgbm, catboost
+  # DNN: widedeep_tab_mlp, widedeep_tab_net, widedeep_ft_transformer, widedeep_saint
+  - model: widedeep_saint
+  - trainer: gpu
   - callbacks: default
   - logger: none
 
-  - experiment: null
   - hparams_search: null
 
   - hydra: default.yaml
