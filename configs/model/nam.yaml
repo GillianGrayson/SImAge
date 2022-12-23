@@ -1,0 +1,23 @@
+# NAM parameters available here:
+# [https://github.com/AmrMKayid/nam]
+name: nam
+_target_: src.models.tabular.nam.nam.NeuralAdditiveModel
+task: regression
+loss_type: "L1Loss"
+input_dim: ${in_dim}
+output_dim: ${out_dim}
+optimizer_lr: 0.004
+optimizer_weight_decay: 1e-6
+scheduler_step_size: 100
+scheduler_gamma: 0.8
+hidden_sizes: [128, 64]
+activation: 'relu'
+dropout: 0.015
+feature_dropout: 0.15
+decay_rate: 0.995
+l2_regularization: 0.005
+output_regularization: 0.4
+num_basis_functions: 500
+units_multiplier: 2
+use_dnn: False
+num_units: null

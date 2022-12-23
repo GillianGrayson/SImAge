@@ -1,0 +1,17 @@
+# DANet parameters available here:
+#  [https://arxiv.org/abs/2112.02962]
+name: danet
+_target_: src.models.tabular.danet.danet.DANetModel
+task: ${task}
+loss_type: "L1Loss"
+input_dim: ${in_dim}
+output_dim: ${out_dim}
+optimizer_lr: 0.05
+optimizer_weight_decay: 1.0e-05
+scheduler_step_size: 100
+scheduler_gamma: 0.8
+layer_num: 25
+base_outdim: 32
+k: 5
+virtual_batch_size: 256
+drop_rate: 0.15

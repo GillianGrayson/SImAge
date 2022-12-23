@@ -1,0 +1,23 @@
+# Parameters for pytorch_tabular models available here:
+# [https://github.com/manujosephv/pytorch_tabular/tree/main/pytorch_tabular/models]
+name: pytorch_tabular_tabnet
+_target_: src.models.tabular.pytorch_tabular.tabnet.PTTabNetModel
+task: regression
+loss_type: "L1Loss"
+input_dim: ${in_dim}
+output_dim: ${out_dim}
+optimizer_lr: 0.01
+optimizer_weight_decay: 0.0
+scheduler_step_size: 100
+scheduler_gamma: 0.8
+embedding_dims: null
+continuous_cols: null
+categorical_cols: null
+n_d: 8
+n_a: 8
+n_steps: 3
+gamma: 1.3
+n_independent: 1
+n_shared: 2
+virtual_batch_size: 128
+mask_type: "sparsemax"

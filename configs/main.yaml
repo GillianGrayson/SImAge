@@ -5,14 +5,28 @@ defaults:
   - _self_
   - experiment: train
   - datamodule: tabular
-  # model options:
-  # Linear: elastic_net
-  # GBDT: xgboost, lightgbm, catboost
-  # DNN: widedeep_tab_mlp, widedeep_tab_net, widedeep_ft_transformer, widedeep_saint
-  - model: widedeep_saint
   - trainer: gpu
   - callbacks: default
   - logger: none
+
+  # Models options:
+  # Linear:
+  #   elastic_net
+  # GBDT:
+  #   xgboost
+  #   lightgbm
+  #   catboost
+  # DNN:
+  #   widedeep_tab_mlp
+  #   widedeep_tab_net
+  #   widedeep_ft_transformer
+  #   widedeep_saint
+  #   pytorch_tabular_autoint
+  #   pytorch_tabular_tabnet
+  #   pytorch_tabular_node
+  #   nam
+  #   danet
+  - model: danet
 
   - hparams_search: null
 
