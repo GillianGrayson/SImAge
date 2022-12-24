@@ -2,7 +2,7 @@
 #  [https://arxiv.org/abs/2112.02962]
 name: danet
 _target_: src.models.tabular.danet.danet.DANetModel
-task: ${task}
+task: regression
 loss_type: "L1Loss"
 input_dim: ${in_dim}
 output_dim: ${out_dim}

@@ -46,15 +46,15 @@ hydra:
 
     # define range of hyperparameters
     params:
-      pytorch_tabular_autoint.optimizer_lr: tag(log, interval(0.0001, 1))
-      pytorch_tabular_autoint.optimizer_weight_decay: tag(log, interval(0.0000001, 0.001))
-      pytorch_tabular_autoint.attn_embed_dim: choice(8, 16, 32)
-      pytorch_tabular_autoint.num_heads: choice(2, 4, 8)
-      pytorch_tabular_autoint.num_attn_blocks: choice(2, 3, 4, 5)
-      pytorch_tabular_autoint.attn_dropouts: interval(0.0, 0.2)
-      pytorch_tabular_autoint.has_residuals: choice(True, False)
-      pytorch_tabular_autoint.embedding_dim: choice(4, 8, 16, 32)
-      pytorch_tabular_autoint.embedding_dropout: interval(0.0, 0.4)
-      pytorch_tabular_autoint.deep_layers: choice(False, True)
-      pytorch_tabular_autoint.layers: choice("100-50", "200-100", "50-25", "128-64-32", "128-64")
+      model.optimizer_lr: tag(log, interval(0.0001, 1))
+      model.optimizer_weight_decay: tag(log, interval(0.0000001, 0.001))
+      model.attn_embed_dim: choice(8, 16, 32)
+      model.num_heads: choice(2, 4, 8)
+      model.num_attn_blocks: choice(2, 3, 4, 5)
+      model.attn_dropouts: interval(0.0, 0.2)
+      model.has_residuals: choice(True, False)
+      model.embedding_dim: choice(4, 8, 16, 32)
+      model.embedding_dropout: interval(0.0, 0.4)
+      model.deep_layers: choice(False, True)
+      model.layers: choice("100-50", "200-100", "50-25", "128-64-32", "128-64")
 

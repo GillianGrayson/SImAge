@@ -1,32 +1,36 @@
 # @package _global_
 
 # Global params
-seed: 1337 # Random seed
-task: "regression" # Task type.
-target: "Age" # Target column name. Here we perform regression for chronological age.
+seed: 1337          # Random seed
+target: "Age"       # Target column name
 
 # Cross-validation params
-cv_is_split: True # Perform cross-validation?
-cv_n_splits: 5 # Number of splits in cross-validation.
-cv_n_repeats: 5 # Number of repeats in cross-validation.
+cv_is_split: True   # Perform cross-validation?
+cv_n_splits: 5      # Number of splits in cross-validation
+cv_n_repeats: 5     # Number of repeats in cross-validation
+
+# Data params
+in_dim: 10      # Number of input features
+out_dim: 1      # Output dimension
+embed_dim: 16   # Default embedding dimension
 
 # Optimization metrics params
-optimized_metric: "mean_absolute_error" # All metrics listed in src.tasks.metrics.
-optimized_mean: "cv_mean" # Optimize mean result across all cross-validation splits? Options: ["", "cv_mean"].
-optimized_part: "val" # Optimized data partition. Options: ["val", "tst"].
-direction: "min" # Direction of metrics optimization. Options ["min", "max"].
+optimized_metric: "mean_absolute_error"   # All metrics listed in src.tasks.metrics
+optimized_mean: "cv_mean"                 # Optimize mean result across all cross-validation splits? Options: ["", "cv_mean"]
+optimized_part: "val"                     # Optimized data partition. Options: ["val", "tst"]
+direction: "min"                          # Direction of metrics optimization. Options ["min", "max"]
 
 # Run params
-max_epochs: 1000 # Maximum number of epochs.
-patience: 100 # Number of early stopping epochs.
-feature_importance: none # Feature importance method. Options: [none, shap_deep, shap_kernel, shap_tree, native].
+max_epochs: 1000          # Maximum number of epochs
+patience: 100             # Number of early stopping epochs
+feature_importance: none  # Feature importance method. Options: [none, shap_deep, shap_kernel, shap_tree, native]
 
 # Info params
-debug: False # Is Debug?
-print_config: False # Print config?
-print_model: False # Print model info?
-ignore_warnings: True # Ignore warnings?
-test_after_training: True # Test after training?
+debug: False                # Is Debug?
+print_config: False         # Print config?
+print_model: False          # Print model info?
+ignore_warnings: True       # Ignore warnings?
+test_after_training: True   # Test after training?
 
 # Directories and files params
 project_name: ${model.name}
@@ -35,16 +39,11 @@ data_dir: "${base_dir}"
 work_dir: "${base_dir}/models/${project_name}"
 
 # SHAP values params
-is_shap: False # Calculate SHAP values?
-is_shap_save: False # Save SHAP values?
-shap_explainer: "Tree" # Type of explainer. Options: ["Tree", "Kernel", "Deep"].
-shap_bkgrd: "tree_path_dependent" # Type of background data. Options: ["trn", "all", "tree_path_dependent"].
+is_shap: False                      # Calculate SHAP values?
+is_shap_save: False                 # Save SHAP values?
+shap_explainer: "Tree"              # Type of explainer. Options: ["Tree", "Kernel", "Deep"]
+shap_bkgrd: "tree_path_dependent"   # Type of background data. Options: ["trn", "all", "tree_path_dependent"]
 
 # Plot params
-num_top_features: 10 # Number of most important features to plot
-num_examples: 10 # Number of samples to plot some SHAP figures
-
-# Data params
-in_dim: 10 # Number of input features
-out_dim: 1 # Output dimension (can be more than 1 in multiclass classification problem)
-embed_dim: 16 # Default embedding dimension
+num_top_features: 10  # Number of most important features to plot
+num_examples: 10      # Number of samples to plot some SHAP figures

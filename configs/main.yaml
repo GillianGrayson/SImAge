@@ -3,11 +3,12 @@
 # specify here defaults
 defaults:
   - _self_
-  - experiment: train
-  - datamodule: tabular
-  - trainer: gpu
-  - callbacks: default
-  - logger: none
+  - experiment: train     # Global parameters of experiment
+  - datamodule: tabular   # Information about dataset
+  - trainer: gpu          # Run configuration for DNN models
+  - callbacks: default    # Callbacks for DNN models
+  - logger: none          # Loggers for DNN models
+  - hydra: default.yaml   # Output paths for logs
 
   # Models options:
   # Linear:
@@ -26,11 +27,11 @@ defaults:
   #   pytorch_tabular_node
   #   nam
   #   danet
-  - model: danet
+  - model: widedeep_tab_mlp          # Model
 
-  - hparams_search: null
+  - hparams_search: null  # Model-specific hyperparameters
 
-  - hydra: default.yaml
+
 
   # enable color logging
   - override hydra/hydra_logging: colorlog

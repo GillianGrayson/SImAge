@@ -46,12 +46,12 @@ hydra:
 
     # define range of hyperparameters
     params:
-      pytorch_tabular_tabnet.optimizer_lr: tag(log, interval(0.0001, 1))
-      pytorch_tabular_tabnet.optimizer_weight_decay: tag(log, interval(0.0000001, 0.01))
-      pytorch_tabular_tabnet.n_d: choice(8, 12, 16, 20)
-      pytorch_tabular_tabnet.n_a: choice(8, 12, 16, 20)
-      pytorch_tabular_tabnet.n_steps: choice(2, 3, 4)
-      pytorch_tabular_tabnet.gamma: interval(1.1, 1.5)
-      pytorch_tabular_tabnet.n_independent: choice(1, 2, 3, 4)
-      pytorch_tabular_tabnet.n_shared: choice(1, 2, 3)
-      pytorch_tabular_tabnet.mask_type: choice(sparsemax, entmax)
+      model.optimizer_lr: tag(log, interval(0.0001, 1))
+      model.optimizer_weight_decay: tag(log, interval(0.0000001, 0.01))
+      model.n_d: choice(8, 12, 16, 20)
+      model.n_a: choice(8, 12, 16, 20)
+      model.n_steps: choice(2, 3, 4)
+      model.gamma: interval(1.1, 1.5)
+      model.n_independent: choice(1, 2, 3, 4)
+      model.n_shared: choice(1, 2, 3)
+      model.mask_type: choice(sparsemax, entmax)

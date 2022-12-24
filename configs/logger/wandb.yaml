@@ -2,9 +2,9 @@
 
 wandb:
   _target_: pytorch_lightning.loggers.wandb.WandbLogger
-  project: "template-tests"
+  project: "SImAge"
   version: 0
-  # name: ${name}
+  name: null
   save_dir: "."
   offline: False # set True to store all logs only locally
   id: null # pass correct id to resume experiment!

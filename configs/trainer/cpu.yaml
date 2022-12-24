@@ -1,7 +1,6 @@
-_target_: pytorch_lightning.Trainer
-gpus: 0
-min_epochs: 1
-max_epochs: ${max_epochs}
-weights_summary: null
-progress_bar_refresh_rate: 0
-resume_from_checkpoint: null
+# All Trainer parameters available here:
+# [https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html]
+_target_: pytorch_lightning.Trainer   # Instantiated object
+gpus: 0                               # Number of GPUs to train on
+min_epochs: 1                         # Force training for at least these many epochs
+max_epochs: ${max_epochs}             # Stop training once this number of epochs is reached

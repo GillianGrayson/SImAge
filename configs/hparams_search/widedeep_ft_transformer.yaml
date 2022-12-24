@@ -46,12 +46,12 @@ hydra:
 
     # define range of hyperparameters
     params:
-      widedeep_ft_transformer.optimizer_lr: tag(log, interval(0.00001, 1))
-      widedeep_ft_transformer.optimizer_weight_decay: tag(log, interval(0.0000001, 0.001))
-      widedeep_ft_transformer.embed_dim: choice(16, 32, 64, 128)
-      widedeep_ft_transformer.n_heads: choice(2, 4, 8, 16)
-      widedeep_ft_transformer.n_blocks: choice(1, 2, 4, 8)
-      widedeep_ft_transformer.attn_dropout: interval(0.0, 0.3)
-      widedeep_ft_transformer.ff_dropout: interval(0.0, 0.3)
-      widedeep_ft_transformer.mlp_hidden_dims: choice([200, 100, 50, 1], [200, 100, 1], [100, 50, 1], [100, 1])
-      widedeep_ft_transformer.mlp_dropout: interval(0.0, 0.3)
+      model.optimizer_lr: tag(log, interval(0.00001, 1))
+      model.optimizer_weight_decay: tag(log, interval(0.0000001, 0.001))
+      model.embed_dim: choice(16, 32, 64, 128)
+      model.n_heads: choice(2, 4, 8, 16)
+      model.n_blocks: choice(1, 2, 4, 8)
+      model.attn_dropout: interval(0.0, 0.3)
+      model.ff_dropout: interval(0.0, 0.3)
+      model.mlp_hidden_dims: choice([200, 100, 50, 1], [200, 100, 1], [100, 50, 1], [100, 1])
+      model.mlp_dropout: interval(0.0, 0.3)

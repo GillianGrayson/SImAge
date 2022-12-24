@@ -46,4 +46,4 @@ hydra:
 
     # define range of hyperparameters
     params:
-      elastic_net.alpha: tag(log, interval(0.00001, 100000))
+      model.alpha: tag(log, interval(0.00001, 100000))

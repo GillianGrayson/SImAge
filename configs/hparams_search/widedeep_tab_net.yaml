@@ -46,13 +46,13 @@ hydra:
 
     # define range of hyperparameters
     params:
-      widedeep_tab_net.optimizer_lr: tag(log, interval(0.00001, 1))
-      widedeep_tab_net.optimizer_weight_decay: tag(log, interval(0.0000001, 0.01))
-      widedeep_tab_net.n_steps: choice(2, 3, 4, 5)
-      widedeep_tab_net.attn_dim: choice(2, 4, 8, 12, 16, 20)
-      widedeep_tab_net.dropout: interval(0.0, 0.2)
-      widedeep_tab_net.n_glu_step_dependent: choice(1, 2, 3)
-      widedeep_tab_net.n_glu_shared: choice(2, 3, 4)
-      widedeep_tab_net.momentum: interval(0.01, 0.25)
-      widedeep_tab_net.gamma: interval(1.1, 1.5)
-      widedeep_tab_net.mask_type: choice(sparsemax, entmax)
+      model.optimizer_lr: tag(log, interval(0.00001, 1))
+      model.optimizer_weight_decay: tag(log, interval(0.0000001, 0.01))
+      model.n_steps: choice(2, 3, 4, 5)
+      model.attn_dim: choice(2, 4, 8, 12, 16, 20)
+      model.dropout: interval(0.0, 0.2)
+      model.n_glu_step_dependent: choice(1, 2, 3)
+      model.n_glu_shared: choice(2, 3, 4)
+      model.momentum: interval(0.01, 0.25)
+      model.gamma: interval(1.1, 1.5)
+      model.mask_type: choice(sparsemax, entmax)

@@ -1,20 +1,20 @@
-_target_: src.datamodules.tabular.TabularDataModule
-task: ${task}
-feats_con_fn: "${data_dir}/feats_con_${in_dim}.xlsx"
-feats_cat_fn: null
-feats_cat_encoding: label
-feats_cat_embed_dim: ${embed_dim}
-target: ${target}
-target_classes_fn: null
-data_fn: "${data_dir}/data.xlsx"
-data_index: index
-data_imputation: fast_knn
-split_by: trn_val # Options: [trn_val, top_feat, explicit_feat]
-split_trn_val: [0.80, 0.20]
-split_top_feat: null
-split_explicit_feat: Split
-batch_size: 512
-num_workers: 0
-pin_memory: False
-seed: ${seed}
-weighted_sampler: True
+_target_: src.datamodules.tabular.TabularDataModule   # Instantiated object
+task: "regression"                                    # Task type. Options: ["classification", "regression"]. Here we solve regression problem
+feats_con_fn: "${data_dir}/feats_con_${in_dim}.xlsx"  # File with continuous input features
+feats_cat_fn: null                                    # File with categorical input features
+feats_cat_encoding: label                             # How to encode categorical features? Options: ["label", "one_hot"]
+feats_cat_embed_dim: ${embed_dim}                     # Dimension size for categorical features embedding
+target: ${target}                                     # Target predicted feature
+target_classes_fn: null                               # File with selected classes (for classification tasks only)
+data_fn: "${data_dir}/data.xlsx"                      # File with dataset
+data_index: index                                     # Index column in dataset file
+data_imputation: fast_knn                             # Imputation method for missing values (see https://github.com/eltonlaw/impyute)
+split_by: trn_val                                     # Splitting method. Options: [trn_val, top_feat, explicit_feat]
+split_trn_val: [0.80, 0.20]                           # Splitting parts for "trn_val" splitting method
+split_top_feat: null                                  # Splitting column for "top_feat" splitting method
+split_explicit_feat: Split                            # Splitting column for "explicit_feat" splitting method
+batch_size: 512                                       # Batch size (for torch DataLoader)
+num_workers: 0                                        # Num workers (for torch DataLoader)
+pin_memory: False                                     # Memory pinning (for torch DataLoader)
+seed: ${seed}                                         # Random seed
+weighted_sampler: True                                # Samplers are wighted? For imbalanced data

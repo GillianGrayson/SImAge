@@ -46,9 +46,9 @@ hydra:
 
     # define range of hyperparameters
     params:
-      widedeep_tab_mlp.optimizer_lr: tag(log, interval(0.00001, 1))
-      widedeep_tab_mlp.optimizer_weight_decay: tag(log, interval(0.00000001, 0.1))
-      widedeep_tab_mlp.mlp_hidden_dims: choice([200, 100, 1], [100, 50, 1], [200, 100, 50, 1], [400, 200, 100, 1], [400, 200, 100, 50, 1])
-      widedeep_tab_mlp.mlp_activation: choice('relu', 'gelu', 'leaky_relu')
-      widedeep_tab_mlp.mlp_dropout: choice(0.05, 0.1, 0.15)
-      widedeep_tab_mlp.mlp_linear_first: choice(False, True)
+      model.optimizer_lr: tag(log, interval(0.00001, 1))
+      model.optimizer_weight_decay: tag(log, interval(0.00000001, 0.1))
+      model.mlp_hidden_dims: choice([200, 100, 1], [100, 50, 1], [200, 100, 50, 1], [400, 200, 100, 1], [400, 200, 100, 50, 1])
+      model.mlp_activation: choice('relu', 'gelu', 'leaky_relu')
+      model.mlp_dropout: choice(0.05, 0.1, 0.15)
+      model.mlp_linear_first: choice(False, True)

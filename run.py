@@ -42,10 +42,7 @@ def main(config: DictConfig):
         print('CUDA Device Name:', torch.cuda.get_device_name(0))
         print('CUDA Device Total Memory [GB]:', torch.cuda.get_device_properties(0).total_memory / 1024**3)
 
-    if config.task == "regression":
-        return process_regression(config)
-    else:
-        raise ValueError(f"Unsupported task: {config.task}")
+    return process_regression(config)
 
 
 if __name__ == "__main__":
