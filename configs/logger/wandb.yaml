@@ -1,16 +1,15 @@
-# https://wandb.ai
-
-wandb:
-  _target_: pytorch_lightning.loggers.wandb.WandbLogger
-  project: "SImAge"
-  version: 0
-  name: null
-  save_dir: "."
-  offline: False # set True to store all logs only locally
-  id: null # pass correct id to resume experiment!
-  # entity: ""  # set to name of your wandb team
-  log_model: False
-  prefix: ""
-  job_type: "train"
-  group: ""
-  tags: []
+# All supported PyTorch Lightning loggers available here:
+# [https://pytorch-lightning.readthedocs.io/en/stable/extensions/logging.html]
+# More details abound W&B logging:
+# [https://wandb.ai]
+wandb:                                                    # W&B logger
+  _target_: pytorch_lightning.loggers.wandb.WandbLogger   # Instantiated object
+  project: "SImAge"                                       # The name of the project to which this run will belong
+  version: 0                                              # Version of the run
+  name: null                                              # Name of the run
+  save_dir: "."                                           # Path where data is saved
+  offline: False                                          # Set True to store all logs only locally
+  log_model: False                                        # Upload model checkpoints?
+  prefix: ""                                              # String to put at the beginning of metric keys
+  group: ""                                               # Group
+  tags: []                                                # Tags

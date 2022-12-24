@@ -1,6 +1,7 @@
-# Output paths for hydra logs
+# All details about hydra configuration available here:
+# [https://hydra.cc]
 run:
-    dir: ${work_dir}/runs/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${work_dir}/runs/${now:%Y-%m-%d_%H-%M-%S}          # Output paths for single run
 sweep:
-    dir: ${work_dir}/multiruns/${now:%Y-%m-%d_%H-%M-%S}
-    subdir: ${hydra.job.num}
+    dir: ${work_dir}/multiruns/${now:%Y-%m-%d_%H-%M-%S}     # Output paths for multiple runs
+    subdir: ${hydra.job.num}                                # Subdir for each run

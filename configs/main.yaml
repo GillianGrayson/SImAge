@@ -27,11 +27,9 @@ defaults:
   #   pytorch_tabular_node
   #   nam
   #   danet
-  - model: widedeep_tab_mlp          # Model
+  - model: lightgbm
 
   - hparams_search: null  # Model-specific hyperparameters
-
-
 
   # enable color logging
   - override hydra/hydra_logging: colorlog

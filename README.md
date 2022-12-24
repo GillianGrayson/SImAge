@@ -86,7 +86,7 @@ pip install -r requirements.txt
    ├── models                 <- Результаты экспериментов для разных моделей
    ├── data.xlsx              <- Dataframe with immunological data
    ├── feats_con_46.xlsx      <- File with all 46 biomarkers
-   └── feats_con_10.xlsx      <- File with the most imortant 10 biomarkers
+   └── feats_con_10.xlsx      <- File with the most important 10 biomarkers
 ```
 > `data.xlsx` is a dataframe, each row corresponds to sample, each column corresponds to feature.
 > In addition to immunological features there are also `Age` (in years) and `Sex` (F or M).
@@ -240,6 +240,88 @@ _target_: pytorch_lightning.Trainer   # Instantiated object
 gpus: 0                               # Number of GPUs to train on
 min_epochs: 1                         # Force training for at least these many epochs
 max_epochs: ${max_epochs}             # Stop training once this number of epochs is reached
+```
+</details>
+
+### Callbacks config
+
+Location: [configs/callbacks](configs/callbacks)<br>
+Callbacks config contains information about [PyTorch Lightning Callbacks](https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html) for DNN models.<br>
+Executing command: `python main.py callbacks=default`.<br>
+
+<details>
+<summary><b>Default Callbacks config</b></summary>
+
+```yaml
+# All PyTorch Lightning callback described here:
+# [https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html]
+early_stopping:                                         # Early stopping callback
+  _target_: pytorch_lightning.callbacks.EarlyStopping   # Instantiated object
+  monitor: "val/${optimized_metric}_pl"                 # Name of the logged metric which determines when model is improving
+  mode: ${direction}                                    # Can be "max" or "min"
+  patience: ${patience}                                 # How many epochs of not improving until training stops
+  min_delta: 0                                          # Minimum change in the monitored metric needed to qualify as an improvement
+
+model_checkpoint:                                         # Model checkpoint callback
+  _target_: pytorch_lightning.callbacks.ModelCheckpoint   # Instantiated object
+  monitor: "val/${optimized_metric}_pl"                   # Name of the logged metric which determines when model is improving
+  mode: ${direction}                                      # Can be "max" or "min"
+  save_top_k: 1                                           # Save k best models (determined by above metric)
+  save_last: False                                        # Additionally always save model from last epoch
+  verbose: False                                          # Verbosity level
+  dirpath: ""                                             # Directory to save the model file
+  filename: "best"                                        # Checkpoint filename
+  auto_insert_metric_name: False                          # Checkpoints filenames will contain the metric name?
+```
+</details>
+
+### Logger config
+
+Location: [configs/logger](configs/logger)<br>
+Logger config contains information about [PyTorch Lightning Loggers](https://pytorch-lightning.readthedocs.io/en/stable/extensions/logging.html) for DNN models.<br>
+Executing command: `python main.py logger=wandb`.<br>
+> **Note**: Using W&B requires you to [setup account](https://www.wandb.com/) first.
+
+<details>
+<summary><b>W&B logger config example</b></summary>
+
+```yaml
+# All supported PyTorch Lightning loggers available here:
+# [https://pytorch-lightning.readthedocs.io/en/stable/extensions/logging.html]
+# More details abound W&B logging:
+# [https://wandb.ai]
+wandb:                                                    # W&B logger
+  _target_: pytorch_lightning.loggers.wandb.WandbLogger   # Instantiated object
+  project: "SImAge"                                       # The name of the project to which this run will belong
+  version: 0                                              # Version of the run
+  name: null                                              # Name of the run
+  save_dir: "."                                           # Path where data is saved
+  offline: False                                          # Set True to store all logs only locally
+  log_model: False                                        # Upload model checkpoints?
+  prefix: ""                                              # String to put at the beginning of metric keys
+  group: ""                                               # Group
+  tags: []                                                # Tags
+```
+</details>
+
+
+### Hydra config
+
+Location: [configs/hydra](configs/hydra)<br>
+Logger config contains information about output paths for logs and results in [Hydra](https://hydra.cc) framework.<br>
+Executing command: `python main.py hydra=default`.<br>
+
+<details>
+<summary><b>Hydra config details</b></summary>
+
+```yaml
+# All details about hydra configuration available here:
+# [https://hydra.cc]
+run:
+    dir: ${work_dir}/runs/${now:%Y-%m-%d_%H-%M-%S}          # Output paths for single run
+sweep:
+    dir: ${work_dir}/multiruns/${now:%Y-%m-%d_%H-%M-%S}     # Output paths for multiple runs
+    subdir: ${hydra.job.num}                                # Subdir for each run
 ```
 </details>
 
