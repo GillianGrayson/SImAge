@@ -566,6 +566,10 @@ You need to specify parameter `feature_importance` in the `experiment` configura
 You need to specify parameter `feature_importance` in the `experiment` configuration file.
 
 - `hist_[suffix].pdf[png]`: figure with samples distribution into training and validation sets in the best cross-validation split.
+  <details>
+  <summary>Example</summary>
+  ![readme/hist.png](readme/hist.png)
+  </details>
 
 - `scatter.pdf[png]`: figure with comparison of ground truth and predicted values.
 
