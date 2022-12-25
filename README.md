@@ -55,6 +55,8 @@ The directory structure is following:
 │
 ├── requirements.txt       <- File for installing python dependencies
 ├── run.py                 <- Main run file
+│
+├── readme                 <- Directory with aux images for README.md
 └── README.md
 ```
 
@@ -568,12 +570,22 @@ You need to specify parameter `feature_importance` in the `experiment` configura
 - `hist_[suffix].pdf[png]`: figure with samples distribution into training and validation sets in the best cross-validation split.
   <details>
   <summary>Example</summary>
-  ![](https://github.com/GillianGrayson/SImAge/blob/main/readme/hist.png)
+
+  ![](readme/hist.png)
+
   </details>
 
 - `scatter.pdf[png]`: figure with comparison of ground truth and predicted values.
+  <details>
+  <summary>Example</summary>
+
+  ![](readme/scatter.png)
+
+  </details>
 
 - `model`: model checkpoint file for the best cross-validation split. Different file extensions are possible, depending on the type of model.
+
+- `shap`: directory containing data and figures relating to eXplainable Artificial Intelligence (XAI). Detailed description of the results generated in this directory is given in the next section.
 
 ## License
 
