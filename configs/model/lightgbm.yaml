@@ -1,17 +1,17 @@
 # LightGBM parameters available here:
 # [https://lightgbm.readthedocs.io/en/latest/Parameters.html]
-name: lightgbm
-objective: regression
-boosting: gbdt
-learning_rate: 0.05
-num_leaves: 31
-device: cpu
-max_depth: -1
-min_data_in_leaf: 10
-feature_fraction: 0.9
-bagging_fraction: 0.9
-bagging_freq: 5
-verbose: -1
-metric: l1
-max_epochs: ${max_epochs}
-patience: ${patience}
+name: lightgbm              # Model name
+objective: regression       # Machine learning task type
+boosting: gbdt              # Boosting type
+learning_rate: 0.05         # Learning/shrinkage rate
+num_leaves: 31              # Max number of leaves in one tree
+device: cpu                 # Device for the tree learning
+max_depth: -1               # Limit the max depth for tree model (<= 0 means no limit)
+min_data_in_leaf: 10        # Minimal number of data in one leaf
+feature_fraction: 0.9       # Randomly selected subset of features on each iteration (tree)
+bagging_fraction: 0.9       # Like feature_fraction, but this will randomly select part of data without resampling
+bagging_freq: 5             # Frequency for bagging
+verbose: -1                 # Controls the level of LightGBM’s verbosity
+metric: l1                  # Metric to be evaluated on the evaluation set
+max_epochs: ${max_epochs}   # Number of boosting iterations
+patience: ${patience}       # Number of boosting iteration without improving

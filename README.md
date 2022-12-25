@@ -88,12 +88,12 @@ pip install -r requirements.txt
    ├── feats_con_46.xlsx      <- File with all 46 biomarkers
    └── feats_con_10.xlsx      <- File with the most important 10 biomarkers
 ```
-> `data.xlsx` is a dataframe, each row corresponds to sample, each column corresponds to feature.
-> In addition to immunological features there are also `Age` (in years) and `Sex` (F or M).
+- `data.xlsx` is a dataframe, each row corresponds to sample, each column corresponds to feature. 
+In addition to immunological features there are also `Age` (in years).
 
-> `feats_con_*.xlsx` are dataframes which contains features (immunological biomarkers), which will be used as input features of models.
+- `feats_con_*.xlsx` are dataframes which contains features (immunological biomarkers), which will be used as input features of models.
 
-> `models` - это директория, в которой будут сохраняться результаты разных моделей (logs, figures, tables).
+- `models` - это директория, в которой будут сохраняться результаты разных моделей (logs, figures, tables).
 
 
 ## Configuring experiments
@@ -325,7 +325,142 @@ sweep:
 ```
 </details>
 
-## Примеры запусков
+
+### Model config
+
+Location: [configs/model](configs/model)<br>
+Model config contains information about selected machine learning model.<br>
+Executing command: `python main.py model=lightgbm`.<br>
+
+This study considers various machine learning models specified for tabular data.
+
+#### Linear models:
+- [Elastic Net](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.ElasticNet.html)
+
+#### Gradient Boosted Decision Trees (GBDT):
+- [XGBoost](https://xgboost.readthedocs.io/en/stable/)
+- [LightGBM](https://lightgbm.readthedocs.io/en/latest/index.html)
+- [CatBoost](https://catboost.ai)
+
+#### Deep Neural Networks (DNN):
+- [Multilayer Perceptron (MLP)](https://pytorch-widedeep.readthedocs.io/en/latest/pytorch-widedeep/model_components.html#pytorch_widedeep.models.tabular.mlp.tab_mlp.TabMlp)
+- [Neural Additive Model (NAM)](https://github.com/AmrMKayid/nam)
+- [Neural Oblivious Decision Ensembles (NODE)](https://github.com/manujosephv/pytorch_tabular/tree/main/pytorch_tabular/models/node)
+- [Deep Abstract Network (DANet)](https://arxiv.org/abs/2112.02962)
+- [TabNet](https://pytorch-widedeep.readthedocs.io/en/latest/pytorch-widedeep/model_components.html#pytorch_widedeep.models.tabular.tabnet.tab_net.TabNet)
+- [AutoInt](https://github.com/manujosephv/pytorch_tabular/tree/main/pytorch_tabular/models/autoint)
+- [Self-Attention and Intersample Attention Transformer (SAINT)](https://pytorch-widedeep.readthedocs.io/en/latest/pytorch-widedeep/model_components.html#pytorch_widedeep.models.tabular.transformers.saint.SAINT)
+- [Feature Tokenizer and Transformer (FT-Transformer)](https://pytorch-widedeep.readthedocs.io/en/latest/pytorch-widedeep/model_components.html#pytorch_widedeep.models.tabular.transformers.ft_transformer.FTTransformer)
+
+
+<details>
+<summary><b>LightGBM model config example</b></summary>
+
+```yaml
+# LightGBM parameters available here:
+# [https://lightgbm.readthedocs.io/en/latest/Parameters.html]
+name: lightgbm              # Model name
+objective: regression       # Machine learning task type
+boosting: gbdt              # Boosting type
+learning_rate: 0.05         # Learning/shrinkage rate
+num_leaves: 31              # Max number of leaves in one tree
+device: cpu                 # Device for the tree learning
+max_depth: -1               # Limit the max depth for tree model (<= 0 means no limit)
+min_data_in_leaf: 10        # Minimal number of data in one leaf
+feature_fraction: 0.9       # Randomly selected subset of features on each iteration (tree)
+bagging_fraction: 0.9       # Like feature_fraction, but this will randomly select part of data without resampling
+bagging_freq: 5             # Frequency for bagging
+verbose: -1                 # Controls the level of LightGBM’s verbosity
+metric: l1                  # Metric to be evaluated on the evaluation set
+max_epochs: ${max_epochs}   # Number of boosting iterations
+patience: ${patience}       # Number of boosting iteration without improving
+```
+</details>
+
+### Hyperparameter search config
+
+Location: [configs/hparams_search](configs/hparams_search)<br>
+Hyperparameter search config contains information about the ranges of varying parameters specific to each model.<br>
+This configuration directory contains files for all the models mentioned in the previous section.<br>
+Executing command: `python main.py model=lightgbm hparams_search=lightgbm`.<br>
+
+The searching process of the parameters' best combination is performed by 
+[Optuna Sweeper Hydra plugin](https://hydra.cc/docs/plugins/optuna_sweeper/).
+
+<details>
+<summary><b>LightGBM model hyperparameter search config example</b></summary>
+
+```yaml
+# @package _global_
+defaults:
+  - override /hydra/sweeper: optuna
+
+# Choose metric which will be optimized by Optuna
+optimized_metric: "mean_absolute_error"
+optimized_mean: "cv_mean"
+
+# Here we define Optuna hyperparameter search
+# It optimizes for value returned from function with @hydra.main decorator
+# Documentation: [https://hydra.cc/docs/plugins/optuna_sweeper/]
+hydra:
+  sweeper:
+    _target_: hydra_plugins.hydra_optuna_sweeper.optuna_sweeper.OptunaSweeper   # Instantiated object
+    storage: null         # Storage URL to persist optimization results
+    study_name: null      # Name of the study to persist optimization results
+    n_jobs: 1             # Number of parallel workers
+    direction: minimize   # Objective: 'minimize' or 'maximize'
+    n_trials: 200         # Total number of runs that will be executed
+
+    # Choose Optuna hyperparameter sampler
+    # Documentation: [https://optuna.readthedocs.io/en/stable/reference/samplers/index.html]
+    sampler:
+      _target_: optuna.samplers.TPESampler    # Instantiated object
+      seed: ${seed}                # Seed for random number generator
+      consider_prior: true         # Enhance the stability of Parzen estimator by imposing a Gaussian prior
+      prior_weight: 1.0            # The weight of the prior
+      consider_magic_clip: true    # Enable a heuristic to limit the smallest variances of Gaussians used in the Parzen estimator
+      consider_endpoints: false    # Take endpoints of domains into account when calculating variances of Gaussians in Parzen estimator
+      n_startup_trials: 50         # The random sampling is used instead of the TPE algorithm until the given number of trials finish
+      n_ei_candidates: 10          # Number of candidate samples used to calculate the expected improvement
+      multivariate: false          # Single variate optimization
+
+    # Define range of hyperparameters in LightGBM model
+    params:
+      model.learning_rate: tag(log, interval(0.00001, 1))   # Learning/shrinkage rate
+      model.num_leaves: int(range(10, 100, step=1))         # Max number of leaves in one tree
+      model.min_data_in_leaf: int(range(1, 50, step=1))     # Minimal number of data in one leaf
+      model.feature_fraction: interval(0.6, 1.0)            # Randomly selected subset of features on each iteration (tree)
+      model.bagging_fraction: interval(0.6, 1.0)            # Like feature_fraction, but this will randomly select part of data without resampling
+```
+</details>
+
+
+## Running experiments
+
+При необходимости, перед запуском эксперимента можно изменить конфигурационные файлы, описанные в предыдущей секции.
+
+### Single experiment
+
+Run training process of the selected model:
+
+```bash
+python run.py model=lightgbm
+```
+
+### Hyperparameter Search
+
+Create a sweep over hyperparameters with Optuna:
+
+```bash
+# This will run hyperparameter search defined in `configs/hparams_search/lightgbm.yaml`
+# Over chosen experiment config for LightGBM model `configs/model/lightgbm.yaml`
+python run.py --multirun model=lightgbm hparams_search=lightgbm
+```
+> **Warning**: Optuna sweeps are not failure-resistant (if one job crashes then the whole sweep crashes).
+
+
+
+### Additional examples
 
 <details>
 <summary><b>Override any config parameter from command line</b></summary>
@@ -377,152 +512,64 @@ python run.py --multirun model=lightgbm model.learning_rate=0.1,0.05,0.01 model.
 ```
 </details>
 
-<details>
-<summary><b>Create a sweep over hyperparameters with Optuna</b></summary>
 
-```bash
-# this will run hyperparameter search defined in `configs/hparams_search/lightgbm.yaml`
-# over chosen experiment config for LightGBM model as example
-python run.py --multirun model=lightgbm hparams_search=lightgbm
+## Results
+
+Hydra creates new output subdirectory in `data/models` directory for every executed run.
+
+### Results structure:
 ```
-> **Warning**: Optuna sweeps are not failure-resistant (if one job crashes then the whole sweep crashes).
-</details>
-
-
-
-## Workflow
-
-**Basic workflow**
-
-1. Write your PyTorch Lightning module (see [models/mnist_module.py](src/models/mnist_module.py) for example)
-2. Write your PyTorch Lightning datamodule (see [datamodules/mnist_datamodule.py](src/datamodules/mnist_datamodule.py) for example)
-3. Write your experiment config, containing paths to model and datamodule
-4. Run training with chosen experiment config:
-   ```bash
-   python src/train.py experiment=experiment_name.yaml
-   ```
-
-**Experiment design**
-
-_Say you want to execute many runs to plot how accuracy changes in respect to batch size._
-
-1. Execute the runs with some config parameter that allows you to identify them easily, like tags:
-
-   ```bash
-   python train.py -m logger=csv datamodule.batch_size=16,32,64,128 tags=["batch_size_exp"]
-   ```
-
-2. Write a script or notebook that searches over the `logs/` folder and retrieves csv logs from runs containing given tags in config. Plot the results.
-
-<br>
-
-## Logs
-
-Hydra creates new output directory for every executed run.
-
-Default logging structure:
-
+└── data 
+   └── models
+       ├── elastic_net              <- Elastic Net model results                     
+       ├── lightgbm                 <- LightGBM model results     
+       │   ├── runs                       <- Single run results
+       │   │   ├── YYYY-MM-DD_HH-MM-SS          <- Datetime of the run
+       │   │   │   └── *Results*                      <- Generated result files           
+       │   │   └── ...
+       │   └── multiruns                  <- Multiple run results (hyperparameter search)
+       │       ├── YYYY-MM-DD_HH-MM-SS          <-  Datetime of the multirun
+       │       │   ├── 1                              <- Multirun job number
+       │       │   │   └── *Results*                         <- Generated result files
+       │       │   ├── 2                              <- Multirun job number
+       │       │   │   └── *Results*                         <- Generated result files
+       │       │   └── ...
+       │       └── ...
+       └── ...
 ```
-├── logs
-│   ├── task_name
-│   │   ├── runs                        # Logs generated by single runs
-│   │   │   ├── YYYY-MM-DD_HH-MM-SS       # Datetime of the run
-│   │   │   │   ├── .hydra                  # Hydra logs
-│   │   │   │   ├── csv                     # Csv logs
-│   │   │   │   ├── wandb                   # Weights&Biases logs
-│   │   │   │   ├── checkpoints             # Training checkpoints
-│   │   │   │   └── ...                     # Any other thing saved during training
-│   │   │   └── ...
-│   │   │
-│   │   └── multiruns                   # Logs generated by multiruns
-│   │       ├── YYYY-MM-DD_HH-MM-SS       # Datetime of the multirun
-│   │       │   ├──1                        # Multirun job number
-│   │       │   ├──2
-│   │       │   └── ...
-│   │       └── ...
-│   │
-│   └── debugs                          # Logs generated when debugging config is attached
-│       └── ...
-```
+This structure can be changed by  modifying paths in [hydra configuration](configs/hydra).
 
+### Generated result files:
 
-You can change this structure by modifying paths in [hydra configuration](configs/hydra).
+По итогам работы генерируются следующие файлы:
 
+- `сv_ids.xlsx`: table showing how the samples are divided into training and validation sets in each cross-validation split.
 
-## Experiment Tracking
+- `metrics_trn_[suffix].xlsx`: values of different 
+[regression metrics](https://torchmetrics.readthedocs.io/en/stable/regression/mean_absolute_error.html) on the training set, 
+which corresponds to the best cross-validation split.
 
-PyTorch Lightning supports many popular logging frameworks: [Weights&Biases](https://www.wandb.com/), [Neptune](https://neptune.ai/), [Comet](https://www.comet.ml/), [MLFlow](https://mlflow.org), [Tensorboard](https://www.tensorflow.org/tensorboard/).
+- `metrics_val_[suffix].xlsx`: values of different 
+[regression metrics](https://torchmetrics.readthedocs.io/en/stable/regression/mean_absolute_error.html) on the validation set, 
+which corresponds to the best cross-validation split.
 
-These tools help you keep track of hyperparameters and output metrics and allow you to compare and visualize results. To use one of them simply complete its configuration in [configs/logger](configs/logger) and run:
+- `metrics_cv.xlsx`: values of different 
+[regression metrics](https://torchmetrics.readthedocs.io/en/stable/regression/mean_absolute_error.html)
+on the train and validation sets on all cross-validation splits.
 
-```bash
-python train.py logger=logger_name
-```
+- `predictions.xlsx`: results of the best model prediction in cross-validation.
 
-You can use many of them at once (see [configs/logger/many_loggers.yaml](configs/logger/many_loggers.yaml) for example).
+- `feature_importances.xlsx[pdf,png]`: table and figures with feature importances, obtained in the best cross-validation split.<br>
+You need to specify parameter `feature_importance` in the `experiment` configuration file.
 
-You can also write your own logger.
+- `feature_importances_cv.xlsx`: table with feature importances on all cross-validation splits.<br>
+You need to specify parameter `feature_importance` in the `experiment` configuration file.
 
-Lightning provides convenient method for logging custom metrics from inside LightningModule. Read the [docs](https://pytorch-lightning.readthedocs.io/en/latest/extensions/logging.html#automatic-logging) or take a look at [MNIST example](src/models/mnist_module.py).
+- `hist_[suffix].pdf[png]`: figure with samples distribution into training and validation sets in the best cross-validation split.
 
+- `scatter.pdf[png]`: figure with comparison of ground truth and predicted values.
 
-## Hyperparameter Search
-
-You can define hyperparameter search by adding new config file to [configs/hparams_search](configs/hparams_search).
-
-<details>
-<summary><b>Show example hyperparameter search config</b></summary>
-
-```yaml
-# @package _global_
-
-defaults:
-  - override /hydra/sweeper: optuna
-
-# choose metric which will be optimized by Optuna
-# make sure this is the correct name of some metric logged in lightning module!
-optimized_metric: "val/acc_best"
-
-# here we define Optuna hyperparameter search
-# it optimizes for value returned from function with @hydra.main decorator
-hydra:
-  sweeper:
-    _target_: hydra_plugins.hydra_optuna_sweeper.optuna_sweeper.OptunaSweeper
-
-    # 'minimize' or 'maximize' the objective
-    direction: maximize
-
-    # total number of runs that will be executed
-    n_trials: 20
-
-    # choose Optuna hyperparameter sampler
-    # docs: https://optuna.readthedocs.io/en/stable/reference/samplers.html
-    sampler:
-      _target_: optuna.samplers.TPESampler
-      seed: 1234
-      n_startup_trials: 10 # number of random sampling runs before optimization starts
-
-    # define hyperparameter search space
-    params:
-      model.optimizer.lr: interval(0.0001, 0.1)
-      datamodule.batch_size: choice(32, 64, 128, 256)
-      model.net.lin1_size: choice(64, 128, 256)
-      model.net.lin2_size: choice(64, 128, 256)
-      model.net.lin3_size: choice(32, 64, 128, 256)
-```
-
-</details>
-
-Next, execute it with: `python train.py -m hparams_search=mnist_optuna`
-
-Using this approach doesn't require adding any boilerplate to code, everything is defined in a single config file. The only necessary thing is to return the optimized metric value from the launch file.
-
-You can use different optimization frameworks integrated with Hydra, like [Optuna, Ax or Nevergrad](https://hydra.cc/docs/plugins/optuna_sweeper/).
-
-The `optimization_results.yaml` will be available under `logs/task_name/multirun` folder.
-
-This approach doesn't support advanced techniques like prunning - for more sophisticated search, you should probably write a dedicated optimization task (without multirun feature).
-
+- `model`: model checkpoint file for the best cross-validation split. Different file extensions are possible, depending on the type of model.
 
 ## License
 

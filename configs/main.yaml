@@ -29,7 +29,7 @@ defaults:
   #   danet
   - model: lightgbm
 
-  - hparams_search: null  # Model-specific hyperparameters
+  - hparams_search: lightgbm  # Model-specific hyperparameters
 
   # enable color logging
   - override hydra/hydra_logging: colorlog

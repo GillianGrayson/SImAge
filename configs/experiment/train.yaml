@@ -21,9 +21,9 @@ optimized_part: "val"                     # Optimized data partition. Options: [
 direction: "min"                          # Direction of metrics optimization. Options ["min", "max"]
 
 # Run params
-max_epochs: 1000          # Maximum number of epochs
-patience: 100             # Number of early stopping epochs
-feature_importance: none  # Feature importance method. Options: [none, shap_deep, shap_kernel, shap_tree, native]
+max_epochs: 1000            # Maximum number of epochs
+patience: 100               # Number of early stopping epochs
+feature_importance: native  # Feature importance method. Options: [none, shap_deep, shap_kernel, shap_tree, native]
 
 # Info params
 debug: False                # Is Debug?
@@ -39,8 +39,8 @@ data_dir: "${base_dir}"
 work_dir: "${base_dir}/models/${project_name}"
 
 # SHAP values params
-is_shap: False                      # Calculate SHAP values?
-is_shap_save: False                 # Save SHAP values?
+is_shap: True                      # Calculate SHAP values?
+is_shap_save: True                 # Save SHAP values?
 shap_explainer: "Tree"              # Type of explainer. Options: ["Tree", "Kernel", "Deep"]
 shap_bkgrd: "tree_path_dependent"   # Type of background data. Options: ["trn", "all", "tree_path_dependent"]
 
