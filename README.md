@@ -519,7 +519,7 @@ python run.py --multirun model=lightgbm model.learning_rate=0.1,0.05,0.01 model.
 
 Hydra creates new output subdirectory in `data/models` directory for every executed run.
 
-### Results structure:
+### Results structure
 ```
 └── data 
    └── models
@@ -541,17 +541,17 @@ Hydra creates new output subdirectory in `data/models` directory for every execu
 ```
 This structure can be changed by  modifying paths in [hydra configuration](configs/hydra).
 
-### Generated result files:
+### Generated result files
 
 По итогам работы генерируются следующие файлы:
 
 - `сv_ids.xlsx`: table showing how the samples are divided into training and validation sets in each cross-validation split.
 
-- `metrics_trn_[suffix].xlsx`: values of different 
+- `metrics_trn.xlsx`: values of different 
 [regression metrics](https://torchmetrics.readthedocs.io/en/stable/regression/mean_absolute_error.html) on the training set, 
 which corresponds to the best cross-validation split.
 
-- `metrics_val_[suffix].xlsx`: values of different 
+- `metrics_val.xlsx`: values of different 
 [regression metrics](https://torchmetrics.readthedocs.io/en/stable/regression/mean_absolute_error.html) on the validation set, 
 which corresponds to the best cross-validation split.
 
@@ -567,7 +567,7 @@ You need to specify parameter `feature_importance` in the `experiment` configura
 - `feature_importances_cv.xlsx`: table with feature importances on all cross-validation splits.<br>
 You need to specify parameter `feature_importance` in the `experiment` configuration file.
 
-- `hist_[suffix].pdf[png]`: figure with samples distribution into training and validation sets in the best cross-validation split.
+- `hist.pdf[png]`: figure with samples distribution into training and validation sets in the best cross-validation split.
   <details>
   <summary>Example</summary>
 
@@ -586,6 +586,85 @@ You need to specify parameter `feature_importance` in the `experiment` configura
 - `model`: model checkpoint file for the best cross-validation split. Different file extensions are possible, depending on the type of model.
 
 - `shap`: directory containing data and figures relating to eXplainable Artificial Intelligence (XAI). Detailed description of the results generated in this directory is given in the next section.
+
+### XAI result files
+
+For explaining model predictions the [SHAP](https://github.com/slundberg/shap) framework was used.
+SHAP values were calculated separately for each subset: `trn`, `val`, and `all` (all data together).<br>
+The `shap` directory contains separable results for these subsets:
+```
+└── shap 
+   ├── trn                      <- Train subset
+   │   └── ...  
+   ├── val                      <- Validation subset
+   │   └── ...
+   └── all                      <- All data together (train and validation)
+       ├── shap.xlsx                <- Table with SHAP values
+       ├── features                 <- Directory for figures with SHAP values distribution for each feature
+       │   └── *Features scatters*      <- Scatter plots with feature values, SHAP values and model prediction
+       ├── global                   <- Directory for global explainability figures
+       │   ├── bar.pdf[png]             <- Bar figure
+       │   └── beeswarm.pdf[png]        <- Beeswarm figure
+       └── samples                  <- Directory for local explainability figures
+           └── *Sample ID and error*    <- Directory for a certain sample
+               └── waterfall.pdf[png]       <- Waterfall figure
+```
+
+**All obtained XAI results can be logically separated for 3 categories:**
+
+#### Features
+- Correlation of features' values with correcponding SHAP values and model predictions can be visualized via scatter plots.
+
+  <details>
+  <summary>Example</summary>
+
+  ![](readme/xai_features_scatter.png)
+
+  </details>
+
+#### Global explainability
+Global explainability helps to interpret the behavior of the model as a whole - 
+which features have the highest impact on the model's prediction.<br>
+There are several figures to illustrate global explainbility:
+
+- Bar plot illustrates the global importance of each feature, 
+which is calculated as the average absolute value for that feature across all participating samples.
+
+  <details>
+  <summary>Example</summary>
+
+  ![](readme/xai_global_bar.png)
+
+  </details>
+
+- Beeswarm plot shows an information-dense summary of how the top features affect the model output. 
+Each sample is represented by a separate dot on each feature row. The X coordinate of each dot is determined by the SHAP value of that feature, the dots pile up along each feature row to show density. 
+The color shows the original relative value of the feature.
+
+  <details>
+  <summary>Example</summary>
+
+  ![](readme/xai_global_beeswarm.png)
+
+  </details>
+
+#### Local explainability
+
+Local explainability helps to determine why the model made its prediction for a particular sample,
+and how the feature values for that sample affected it.
+
+- Local explainability can be illustrated by waterfall plots. 
+The bottom part of waterfall plot starts with the expected value of the model output 
+(the average prediction of this model on the training set). 
+Each row shows by how much in the positive (red) or negative (blue) direction each feature shifts the prediction
+relative to the expected value to the final model prediction for that sample.
+
+  <details>
+  <summary>Example</summary>
+
+  ![](readme/xai_local_waterfall.png)
+
+  </details>
 
 ## License
 

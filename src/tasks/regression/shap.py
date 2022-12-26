@@ -45,7 +45,7 @@ def explain_samples(config, y_real, y_pred, indexes, shap_values, base_value, fe
             show=False,
         )
         fig = plt.gcf()
-        plt.title(f"{indexes[m_id]}: Real = {y_real[m_id]:0.4f}, Estimated = {y_pred[m_id]:0.4f}", {'fontsize': 20})
+        plt.title(f"{indexes[m_id]}: Real = {y_real[m_id]:0.4f}, Pred = {y_pred[m_id]:0.4f}", {'fontsize': 20})
         fig.savefig(f"{path}/{ind_save}_{diff:0.4f}/waterfall.pdf", bbox_inches='tight')
         fig.savefig(f"{path}/{ind_save}_{diff:0.4f}/waterfall.png", bbox_inches='tight')
         plt.close()
@@ -58,7 +58,7 @@ def explain_samples(config, y_real, y_pred, indexes, shap_values, base_value, fe
             show=False,
         )
         fig = plt.gcf()
-        plt.title(f"{indexes[m_id]}: Real = {y_real[m_id]:0.4f}, Estimated = {y_pred[m_id]:0.4f}", {'fontsize': 20})
+        plt.title(f"{indexes[m_id]}: Real = {y_real[m_id]:0.4f}, Pred = {y_pred[m_id]:0.4f}", {'fontsize': 20})
         fig.savefig(f"{path}/{ind_save}_{diff:0.4f}/decision.pdf", bbox_inches='tight')
         fig.savefig(f"{path}/{ind_save}_{diff:0.4f}/decision.png", bbox_inches='tight')
         plt.close()
@@ -203,7 +203,7 @@ def explain_shap(config, expl_data):
                             color=y_pred,
                             colorscale=px.colors.sequential.Bluered,
                             showscale=True,
-                            colorbar=dict(title=dict(text="Estimation", font=dict(size=20)), tickfont=dict(size=20))
+                            colorbar=dict(title=dict(text="Pred", font=dict(size=20)), tickfont=dict(size=20))
                         )
                     )
                 )
