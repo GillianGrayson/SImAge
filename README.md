@@ -56,8 +56,9 @@ The directory structure is following:
 ├── requirements.txt       <- File for installing python dependencies
 ├── run.py                 <- Main run file
 │
-├── readme                 <- Directory with aux images for README.md
-└── README.md
+├── readme                 <- Directory with auxiliary images for README.md
+├── README.md              <- This file
+└── LICENSE                <- MIT licence file
 ```
 
 ## Install dependencies
