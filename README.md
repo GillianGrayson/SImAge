@@ -17,12 +17,12 @@ Repository with source code for paper "Deep Learning and Gradient Boosting for s
 
 ## Description 
 
-Данный репозиторий содержит коды для построения и анализа различных моделей машинного обучения, используемых для решения задачи регрессии хронологического возраста по табличным  данным иммунологического профиля.
+This repository contains source code for building and analyzing various machine learning models used to solve the task of chronological age regression on tabular immunological profile data.
 
-### Основные возможности:
-- Построение различных моделей машинного обучения для табличных данных (Linear, GBDT, and DNN).
-- Hyperparameter search для моделей машинного обучения.
-- Интерпретируемости и применение методов объяснимого искусственного интеллекта (XAI).
+### Main features:
+- Constructing different machine learning models for tabular data (Linear, GBDT, and DNN).
+- Hyperparameter search for machine learning models.
+- Interpretability and application of explicable artificial intelligence (XAI) methods.
 
 ### Main Technologies
 
@@ -31,7 +31,7 @@ Repository with source code for paper "Deep Learning and Gradient Boosting for s
 
 ## Project Structure
 
-The directory structure is following:
+The directory structure is:
 
 ```
 ├── configs                <- Hydra configuration files
@@ -79,13 +79,13 @@ pip install -r requirements.txt
 ```
 
 ## Data description
-Данные иммунологического профиля представляют из себя значения концентраций 46 цитокинов в плазме крови для 260 человек.
-В контексте этих данных решается задача регрессии хронологического возраста.
+The immunological profile data are values of 46 cytokine concentrations in blood plasma for 260 individuals.
+The chronological age regression problem is solved for these data.
 
-### Файловая структура:
+### File structure:
 ```
-└── data                    <- Эксперимент по регрессии возраста
-   ├── models                 <- Результаты экспериментов для разных моделей
+└── data                    <- Age regression experiment
+   ├── models                 <- Results of experiments for different models
    ├── data.xlsx              <- Dataframe with immunological data
    ├── feats_con_46.xlsx      <- File with all 46 biomarkers
    └── feats_con_10.xlsx      <- File with the most important 10 biomarkers
@@ -95,7 +95,7 @@ In addition to immunological features there are also `Age` (in years).
 
 - `feats_con_*.xlsx` are dataframes which contains features (immunological biomarkers), which will be used as input features of models.
 
-- `models` - это директория, в которой будут сохраняться результаты разных моделей (logs, figures, tables).
+- `models` is the directory in which the results of the different models (logs, figures, tables) will be saved.
 
 
 ## Configuring experiments
@@ -104,7 +104,7 @@ In addition to immunological features there are also `Age` (in years).
 
 Location: [configs/main.yaml](configs/main.yaml) <br>
 Main project config contains default training configuration.<br>
-It determines how config is composed when simply executing command `python main.py`.<br>
+It determines how config is composed, when command `python main.py` is simply executing.<br>
 
 <details>
 <summary><b>Main project config details</b></summary>
@@ -142,7 +142,7 @@ Executing command: `python main.py experiment=train`.<br>
 # @package _global_
 
 # Global params
-seed: 1337          # Random seed
+seed: 42            # Random seed
 task: "regression"  # Task type
 target: "Age"       # Target column name
 
@@ -157,7 +157,7 @@ out_dim: 1      # Output dimension
 embed_dim: 16   # Default embedding dimension
 
 # Optimization metrics params
-optimized_metric: "mean_absolute_error"   # All metrics listed in src.tasks.metrics
+optimized_metric: "mean_absolute_error"   # All metrics are listed in src.tasks.metrics
 optimized_mean: "cv_mean"                 # Optimize mean result across all cross-validation splits? Options: ["", "cv_mean"]
 optimized_part: "val"                     # Optimized data partition. Options: ["val", "tst"]
 direction: "min"                          # Direction of metrics optimization. Options ["min", "max"]
@@ -188,7 +188,7 @@ shap_bkgrd: "tree_path_dependent"   # Type of background data. Options: ["trn", 
 
 # Plot params
 num_top_features: 10  # Number of most important features to plot
-num_examples: 10      # Number of samples to plot some SHAP figures
+num_examples: 10      # Number of samples to plot SHAP figures
 ```
 </details>
 
@@ -229,7 +229,7 @@ weighted_sampler: True                                # Samplers are wighted? Fo
 
 Location: [configs/trainer](configs/trainer)<br>
 Trainer config contains information about different aspects of DNN training process.<br>
-Данный конфигурационынй файл используется для инициализации [PyTorch Lightning Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).<br>
+This configuration file is used to initialize [PyTorch Lightning Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).<br>
 Executing command: `python main.py trainer=cpu`.<br>
 
 <details>
@@ -240,7 +240,7 @@ Executing command: `python main.py trainer=cpu`.<br>
 # [https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html]
 _target_: pytorch_lightning.Trainer   # Instantiated object
 gpus: 0                               # Number of GPUs to train on
-min_epochs: 1                         # Force training for at least these many epochs
+min_epochs: 1                         # Force training for at least these number of epochs
 max_epochs: ${max_epochs}             # Stop training once this number of epochs is reached
 ```
 </details>
@@ -439,7 +439,7 @@ hydra:
 
 ## Running experiments
 
-При необходимости, перед запуском эксперимента можно изменить конфигурационные файлы, описанные в предыдущей секции.
+If necessary, the configuration files described in the previous section can be changed before running the experiment.
 
 ### Single experiment
 
@@ -474,7 +474,7 @@ python run.py max_epochs=200
 </details>
 
 <details>
-<summary><b>Поддерживается тренировка нейросетевых моделей как на CPU, так и на GPU</b></summary>
+<summary><b>Training of neural network models on both CPU and GPU is supported</b></summary>
 
 ```bash
 # train on CPU
@@ -543,7 +543,7 @@ This structure can be changed by  modifying paths in [hydra configuration](confi
 
 ### Generated result files
 
-По итогам работы генерируются следующие файлы:
+The following files are generated as a result:
 
 - `сv_ids.xlsx`: table showing how the samples are divided into training and validation sets in each cross-validation split.
 
@@ -583,7 +583,7 @@ You need to specify parameter `feature_importance` in the `experiment` configura
 
   </details>
 
-- `model`: model checkpoint file for the best cross-validation split. Different file extensions are possible, depending on the type of model.
+- `model`: model checkpoint file for the best cross-validation split. Different file extensions are possible, depending on the model type.
 
 - `shap`: directory containing data and figures relating to eXplainable Artificial Intelligence (XAI). Detailed description of the results generated in this directory is given in the next section.
 
@@ -613,7 +613,7 @@ The `shap` directory contains separable results for these subsets:
 **All obtained XAI results can be logically separated for 3 categories:**
 
 #### Features
-- Correlation of features' values with correcponding SHAP values and model predictions can be visualized via scatter plots.
+- Correlation of features' values with corresponding SHAP values and model predictions can be visualized via scatter plots.
 
   <details>
   <summary>Example</summary>
@@ -625,7 +625,7 @@ The `shap` directory contains separable results for these subsets:
 #### Global explainability
 Global explainability helps to interpret the behavior of the model as a whole - 
 which features have the highest impact on the model's prediction.<br>
-There are several figures to illustrate global explainbility:
+There are several figures to illustrate global explainability:
 
 - Bar plot illustrates the global importance of each feature, 
 which is calculated as the average absolute value for that feature across all participating samples.
