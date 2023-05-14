@@ -11,6 +11,7 @@ optimizer_weight_decay: 1.0e-06
 scheduler_step_size: 100
 scheduler_gamma: 0.8
 embedding_dims: null
+categorical_cardinality: null
 continuous_cols: null
 categorical_cols: null
 attn_embed_dim: 64
@@ -21,7 +22,7 @@ has_residuals: true
 embedding_dim: 64
 embedding_dropout: 0.1
 deep_layers: true
-layers: 128-64-32
+layers: "100-50"
 activation: ReLU
 dropout: 0.0
 use_batch_norm: false

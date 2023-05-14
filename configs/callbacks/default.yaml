@@ -1,5 +1,6 @@
 # All PyTorch Lightning callback described here:
 # [https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html]
+
 early_stopping:                                         # Early stopping callback
   _target_: pytorch_lightning.callbacks.EarlyStopping   # Instantiated object
   monitor: "val/${optimized_metric}_pl"                 # Name of the logged metric which determines when model is improving
@@ -17,3 +18,4 @@ model_checkpoint:                                         # Model checkpoint cal
   dirpath: ""                                             # Directory to save the model file
   filename: "best"                                        # Checkpoint filename
   auto_insert_metric_name: False                          # Checkpoints filenames will contain the metric name?
+  every_n_epochs: 5                                       # Number of epochs between checkpoints

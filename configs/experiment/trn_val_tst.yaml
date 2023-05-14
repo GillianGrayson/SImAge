@@ -7,7 +7,7 @@ target: "Age"       # Target column name
 # Cross-validation params
 cv_is_split: True   # Perform cross-validation?
 cv_n_splits: 5      # Number of splits in cross-validation
-cv_n_repeats: 5     # Number of repeats in cross-validation
+cv_n_repeats: 1     # Number of repeats in cross-validation
 
 # Data params
 in_dim: 10      # Number of input features
@@ -16,14 +16,13 @@ embed_dim: 16   # Default embedding dimension
 
 # Optimization metrics params
 optimized_metric: "mean_absolute_error"   # All metrics listed in src.tasks.metrics
-optimized_mean: "cv_mean"                 # Optimize mean result across all cross-validation splits? Options: ["", "cv_mean"]
-optimized_part: "val"                     # Optimized data partition. Options: ["val", "tst"]
+optimized_part: "val"                     # Optimized data partition. Options: ["val", "tst_ctrl"]
 direction: "min"                          # Direction of metrics optimization. Options ["min", "max"]
 
 # Run params
 max_epochs: 1000            # Maximum number of epochs
-patience: 100               # Number of early stopping epochs
-feature_importance: native  # Feature importance method. Options: [none, shap_deep, shap_kernel, shap_tree, native]
+patience: 50               # Number of early stopping epochs
+feature_importance: none  # Feature importance method. Options: [none, shap_deep, shap_kernel, shap_sampling, shap_tree, native]
 
 # Info params
 debug: False                # Is Debug?
@@ -33,16 +32,16 @@ ignore_warnings: True       # Ignore warnings?
 test_after_training: True   # Test after training?
 
 # Directories and files params
-project_name: ${model.name}
+project_name: ${model.name}_trn_val_tst
 base_dir: "${oc.env:PROJECT_ROOT}/data"
 data_dir: "${base_dir}"
 work_dir: "${base_dir}/models/${project_name}"
 
 # SHAP values params
-is_shap: True                      # Calculate SHAP values?
-is_shap_save: True                 # Save SHAP values?
-shap_explainer: "Tree"              # Type of explainer. Options: ["Tree", "Kernel", "Deep"]
-shap_bkgrd: "tree_path_dependent"   # Type of background data. Options: ["trn", "all", "tree_path_dependent"]
+is_shap: False                 # Calculate SHAP values?
+is_shap_save: True            # Save SHAP values?
+shap_explainer: "Sampling"    # Type of explainer. Options: ["Tree", "Kernel", "Deep"]
+shap_bkgrd: "trn"             # Type of background data. Options: ["trn"]
 
 # Plot params
 num_top_features: 10  # Number of most important features to plot

@@ -11,6 +11,7 @@ optimizer_weight_decay: 0.0
 scheduler_step_size: 100
 scheduler_gamma: 0.8
 embedding_dims: null
+categorical_cardinality: null
 continuous_cols: null
 categorical_cols: null
 num_layers: 1

@@ -7,11 +7,11 @@ from pytorch_lightning import (
     Trainer,
     seed_everything,
 )
-import statsmodels.formula.api as smf
+import matplotlib.pyplot as plt
+import seaborn as sns
 from pytorch_lightning.loggers import LightningLoggerBase
-import plotly.graph_objects as go
 import xgboost as xgb
-from catboost import CatBoost
+from catboost import CatBoost, Pool
 import lightgbm
 from sklearn.linear_model import ElasticNet
 from src.datamodules.cross_validation import RepeatedStratifiedKFoldCVSplitter
@@ -21,11 +21,6 @@ from src.utils import utils
 import pandas as pd
 from tqdm import tqdm
 from src.tasks.regression.shap import explain_shap
-from src.utils.plot.scatter import add_scatter_trace
-from src.utils.plot.save import save_figure
-from scipy.stats import mannwhitneyu
-from src.utils.plot.p_value import add_p_value_annotation
-from src.utils.plot.layout import add_layout
 from src.tasks.routines import eval_regression, eval_loss, save_feature_importance
 from datetime import datetime
 from pathlib import Path
@@ -40,7 +35,7 @@ from src.models.tabular.base import get_model_framework_dict
 log = utils.get_logger(__name__)
 
 
-def process_regression(config: DictConfig) -> Optional[float]:
+def trn_val_tst_regression(config: DictConfig) -> Optional[float]:
 
     if "seed" in config:
         seed_everything(config.seed, workers=True)
@@ -52,25 +47,25 @@ def process_regression(config: DictConfig) -> Optional[float]:
     model_framework = model_framework_dict[config.model.name]
 
     # Init lightning datamodule
+    log.info(f"Instantiating datamodule <{config.datamodule._target_}>")
     datamodule: TabularDataModule = hydra.utils.instantiate(config.datamodule)
     datamodule.perform_split()
-    feature_names = datamodule.get_feature_names()
-    num_features = len(feature_names['all'])
+    features = datamodule.get_features()
+    num_features = len(features['all'])
     config.in_dim = num_features
-    target_name = datamodule.get_target()
+    target = datamodule.target
+    target_label = datamodule.target_label
     df = datamodule.get_data()
     ids_tst = datamodule.ids_tst
-    if len(ids_tst) > 0:
-        is_tst = True
-    else:
-        is_tst = False
+
+    colors = datamodule.colors
 
     cv_splitter = RepeatedStratifiedKFoldCVSplitter(
         datamodule=datamodule,
         is_split=config.cv_is_split,
         n_splits=config.cv_n_splits,
         n_repeats=config.cv_n_repeats,
-        random_state=config.seed
+        random_state=config.seed,
     )
 
     best = {}
@@ -80,7 +75,7 @@ def process_regression(config: DictConfig) -> Optional[float]:
         best["optimized_metric"] = 0.0
 
     metrics_cv = pd.DataFrame(columns=['fold', 'optimized_metric'])
-    feature_importances_cv = pd.DataFrame(columns=['fold'] + feature_names['all'])
+    feature_importances_cv = pd.DataFrame(columns=['fold'] + features['all'])
 
     start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     ckpt_name = config.callbacks.model_checkpoint.filename
@@ -89,17 +84,21 @@ def process_regression(config: DictConfig) -> Optional[float]:
         datamodule.ids_trn = ids_trn
         datamodule.ids_val = ids_val
         datamodule.refresh_datasets()
-        X_trn = df.loc[df.index[ids_trn], feature_names['all']].values
-        y_trn = df.loc[df.index[ids_trn], target_name].values
+        X_trn = df.loc[df.index[ids_trn], features['all']]
+        y_trn = df.loc[df.index[ids_trn], target]
         df.loc[df.index[ids_trn], f"fold_{fold_idx:04d}"] = "trn"
-        X_val = df.loc[df.index[ids_val], feature_names['all']].values
-        y_val = df.loc[df.index[ids_val], target_name].values
+        X_val = df.loc[df.index[ids_val], features['all']]
+        y_val = df.loc[df.index[ids_val], target]
         df.loc[df.index[ids_val], f"fold_{fold_idx:04d}"] = "val"
-        if is_tst:
-            X_tst = df.loc[df.index[ids_tst], feature_names['all']].values
-            y_tst = df.loc[df.index[ids_tst], target_name].values
-            df.loc[df.index[ids_tst], f"fold_{fold_idx:04d}"] = "tst"
+        X_tst = {}
+        y_tst = {}
+        for tst_set_name in ids_tst:
+            X_tst[tst_set_name] = df.loc[df.index[ids_tst[tst_set_name]], features['all']]
+            y_tst[tst_set_name] = df.loc[df.index[ids_tst[tst_set_name]], target]
+            if tst_set_name != 'tst_all':
+                df.loc[df.index[ids_tst[tst_set_name]], f"fold_{fold_idx:04d}"] = tst_set_name
 
+        ckpt_curr = ckpt_name + f"_fold_{fold_idx:04d}"
         if 'csv' in config.logger:
             config.logger.csv["version"] = f"fold_{fold_idx}"
         if 'wandb' in config.logger:
@@ -109,16 +108,18 @@ def process_regression(config: DictConfig) -> Optional[float]:
             # Init lightning model
             widedeep = datamodule.get_widedeep()
             embedding_dims = [(x[1], x[2]) for x in widedeep['cat_embed_input']] if widedeep['cat_embed_input'] else []
+            categorical_cardinality = [x[1] for x in widedeep['cat_embed_input']] if widedeep['cat_embed_input'] else []
             if config.model.name.startswith('widedeep'):
                 config.model.column_idx = widedeep['column_idx']
                 config.model.cat_embed_input = widedeep['cat_embed_input']
                 config.model.continuous_cols = widedeep['continuous_cols']
             elif config.model.name.startswith('pytorch_tabular'):
-                config.model.continuous_cols = feature_names['con']
-                config.model.categorical_cols = feature_names['cat']
+                config.model.continuous_cols = features['con']
+                config.model.categorical_cols = features['cat']
                 config.model.embedding_dims = embedding_dims
+                config.model.categorical_cardinality = categorical_cardinality
             elif config.model.name == 'nam':
-                num_unique_vals = [len(np.unique(X_trn[:, i])) for i in range(X_trn.shape[1])]
+                num_unique_vals = [len(np.unique(X_trn.loc[:, f].values)) for f in features['all']]
                 num_units = [min(config.model.num_basis_functions, i * config.model.units_multiplier) for i in num_unique_vals]
                 config.model.num_units = num_units
 
@@ -128,7 +129,7 @@ def process_regression(config: DictConfig) -> Optional[float]:
                 print(model)
 
             # Init lightning callbacks
-            config.callbacks.model_checkpoint.filename = ckpt_name + f"_fold_{fold_idx:04d}"
+            config.callbacks.model_checkpoint.filename = ckpt_curr
             callbacks: List[Callback] = []
             if "callbacks" in config:
                 for _, cb_conf in config.callbacks.items():
@@ -150,6 +151,7 @@ def process_regression(config: DictConfig) -> Optional[float]:
             trainer: Trainer = hydra.utils.instantiate(
                 config.trainer, callbacks=callbacks, logger=loggers, _convert_="partial"
             )
+            log.info("Logging hyperparameters!")
             utils.log_hyperparameters_pytorch(
                 config=config,
                 model=model,
@@ -159,6 +161,7 @@ def process_regression(config: DictConfig) -> Optional[float]:
                 logger=loggers,
             )
         elif model_framework == "stand_alone":
+            log.info("Logging hyperparameters!")
             utils.log_hyperparameters_stand_alone(
                 config=config,
                 logger=loggers,
@@ -174,27 +177,28 @@ def process_regression(config: DictConfig) -> Optional[float]:
             # Evaluate model on test set, using the best model achieved during training
             if config.get("test_after_training") and not config.trainer.get("fast_dev_run"):
                 log.info("Starting testing!")
-                test_dataloader = datamodule.test_dataloader()
-                if test_dataloader is not None and len(test_dataloader) > 0:
-                    trainer.test(model, test_dataloader, ckpt_path="best")
-                else:
-                    log.info("Test data is empty!")
+                tst_dataloaders = datamodule.test_dataloaders()
+                if len(tst_dataloaders) > 0:
+                    if 'tst_all' in tst_dataloaders:
+                        tst_dataloader = tst_dataloaders['tst_all']
+                    else:
+                        tst_dataloader = tst_dataloaders[list(tst_dataloaders.keys())[0]]
+                    if tst_dataloader is not None and len(tst_dataloader) > 0:
+                        trainer.test(model, tst_dataloader, ckpt_path="best")
+                    else:
+                        log.info("Test data is empty!")
 
             datamodule.dataloaders_evaluate = True
             trn_dataloader = datamodule.train_dataloader()
             val_dataloader = datamodule.val_dataloader()
-            tst_dataloader = datamodule.test_dataloader()
+            tst_dataloaders = datamodule.test_dataloaders()
             datamodule.dataloaders_evaluate = False
-
-            y_trn = df.loc[df.index[ids_trn], target_name].values
-            y_val = df.loc[df.index[ids_val], target_name].values
-            if is_tst:
-                y_tst = df.loc[df.index[ids_tst], target_name].values
 
             y_trn_pred = torch.cat(trainer.predict(model, dataloaders=trn_dataloader, return_predictions=True, ckpt_path="best")).cpu().detach().numpy().ravel()
             y_val_pred = torch.cat(trainer.predict(model, dataloaders=val_dataloader, return_predictions=True, ckpt_path="best")).cpu().detach().numpy().ravel()
-            if is_tst:
-                y_tst_pred = torch.cat(trainer.predict(model, dataloaders=tst_dataloader, return_predictions=True, ckpt_path="best")).cpu().detach().numpy().ravel()
+            y_tst_pred = {}
+            for tst_set_name in ids_tst:
+                y_tst_pred[tst_set_name] = torch.cat(trainer.predict(model, dataloaders=tst_dataloaders[tst_set_name], return_predictions=True, ckpt_path="best")).cpu().detach().numpy().ravel()
 
             # Feature importance
             if Path(f"{config.callbacks.model_checkpoint.dirpath}{config.callbacks.model_checkpoint.filename}.ckpt").is_file():
@@ -202,7 +206,7 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     checkpoint_path=f"{config.callbacks.model_checkpoint.dirpath}{config.callbacks.model_checkpoint.filename}.ckpt")
                 model.eval()
                 model.freeze()
-            feature_importances = model.get_feature_importance(X_trn, feature_names, config.feature_importance)
+            feature_importances = model.get_feature_importance(X_trn.values.astype('float32'), features, config.feature_importance)
 
         elif model_framework == "stand_alone":
             if config.model.name == "xgboost":
@@ -218,10 +222,11 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     'eval_metric': config.model.eval_metric,
                 }
 
-                dmat_trn = xgb.DMatrix(X_trn, y_trn, feature_names=feature_names['all'])
-                dmat_val = xgb.DMatrix(X_val, y_val, feature_names=feature_names['all'])
-                if is_tst:
-                    dmat_tst = xgb.DMatrix(X_tst, y_tst, feature_names=feature_names['all'])
+                dmat_trn = xgb.DMatrix(X_trn, y_trn, feature_names=features['all'], enable_categorical=True)
+                dmat_val = xgb.DMatrix(X_val, y_val, feature_names=features['all'], enable_categorical=True)
+                dmat_tst = {}
+                for tst_set_name in ids_tst:
+                    dmat_tst[tst_set_name] = xgb.DMatrix(X_tst[tst_set_name], y_tst[tst_set_name], feature_names=features['all'], enable_categorical=True)
 
                 evals_result = {}
                 model = xgb.train(
@@ -236,8 +241,9 @@ def process_regression(config: DictConfig) -> Optional[float]:
 
                 y_trn_pred = model.predict(dmat_trn)
                 y_val_pred = model.predict(dmat_val)
-                if is_tst:
-                    y_tst_pred = model.predict(dmat_tst)
+                y_tst_pred = {}
+                for tst_set_name in ids_tst:
+                    y_tst_pred[tst_set_name] = model.predict(dmat_tst[tst_set_name])
 
                 loss_info = {
                     'epoch': list(range(len(evals_result['train'][config.model.eval_metric]))),
@@ -251,24 +257,27 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     fi_importances = list(fi.values())
                 elif config.feature_importance.startswith("shap"):
                     if config.feature_importance == "shap_tree":
-                        explainer = shap.TreeExplainer(model, data=X_trn, feature_perturbation='interventional')
+                        explainer = shap.TreeExplainer(model)
                         shap_values = explainer.shap_values(X_trn)
-                    elif config.feature_importance == "shap_kernel":
+                    elif config.feature_importance in ["shap_kernel", "shap_sampling"]:
                         def predict_func(X):
-                            X = xgb.DMatrix(X, feature_names=feature_names['all'])
+                            X = xgb.DMatrix(X, feature_names=features['all'], enable_categorical=True)
                             y = model.predict(X)
                             return y
-                        explainer = shap.KernelExplainer(predict_func, X_trn)
+                        if config.feature_importance == "shap_kernel":
+                            explainer = shap.KernelExplainer(predict_func, X_trn)
+                        elif config.feature_importance == "shap_sampling":
+                            explainer = shap.SamplingExplainer(predict_func, X_trn)
                         shap_values = explainer.shap_values(X_trn)
                         if isinstance(shap_values, list):
                             shap_values = shap_values[0]
                     else:
                         raise ValueError(f"Unsupported feature importance method: {config.feature_importance}")
-                    fi_features = feature_names['all']
+                    fi_features = features['all']
                     fi_importances = np.mean(np.abs(shap_values), axis=0)
                 elif config.feature_importance == "none":
-                    fi_features = feature_names['all']
-                    fi_importances = np.zeros(len(feature_names['all']))
+                    fi_features = features['all']
+                    fi_importances = np.zeros(len(features['all']))
                 else:
                     raise ValueError(f"Unsupported feature importance method: {config.feature_importance}")
                 feature_importances = pd.DataFrame.from_dict(
@@ -291,14 +300,18 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     'early_stopping_rounds': config.model.patience
                 }
 
+                trn_pool = Pool(X_trn, label=y_trn, feature_names=features['all'], cat_features=features['cat'])
+                val_pool = Pool(X_val, label=y_val, feature_names=features['all'], cat_features=features['cat'])
+
                 model = CatBoost(params=model_params)
-                model.fit(X_trn, y_trn, eval_set=(X_val, y_val), use_best_model=True)
-                model.set_feature_names(feature_names['all'])
+                model.fit(trn_pool, eval_set=val_pool, use_best_model=True)
+                model.set_feature_names(features['all'])
 
                 y_trn_pred = model.predict(X_trn).astype('float32')
                 y_val_pred = model.predict(X_val).astype('float32')
-                if is_tst:
-                    y_tst_pred = model.predict(X_tst).astype('float32')
+                y_tst_pred = {}
+                for tst_set_name in ids_tst:
+                    y_tst_pred[tst_set_name] = model.predict(X_tst[tst_set_name]).astype('float32')
 
                 metrics_train = pd.read_csv(f"catboost_info/learn_error.tsv", delimiter="\t")
                 metrics_val = pd.read_csv(f"catboost_info/test_error.tsv", delimiter="\t")
@@ -313,23 +326,28 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     fi_importances = list(model.feature_importances_)
                 elif config.feature_importance.startswith("shap"):
                     if config.feature_importance == "shap_tree":
-                        explainer = shap.TreeExplainer(model, data=X_trn, feature_perturbation='interventional')
+                        explainer = shap.TreeExplainer(model)
                         shap_values = explainer.shap_values(X_trn)
-                    elif config.feature_importance == "shap_kernel":
+                    elif config.feature_importance in ["shap_kernel", "shap_sampling"]:
                         def predict_func(X):
+                            X = pd.DataFrame(data=X, columns=features["all"])
+                            X[features["cat"]] = X[features["cat"]].astype('int32')
                             y = model.predict(X)
                             return y
-                        explainer = shap.KernelExplainer(predict_func, X_trn)
+                        if config.feature_importance == "shap_kernel":
+                            explainer = shap.KernelExplainer(predict_func, X_trn)
+                        elif config.feature_importance == "shap_sampling":
+                            explainer = shap.SamplingExplainer(predict_func, X_trn)
                         shap_values = explainer.shap_values(X_trn)
                         if isinstance(shap_values, list):
                             shap_values = shap_values[0]
                     else:
                         raise ValueError(f"Unsupported feature importance method: {config.feature_importance}")
-                    fi_features = feature_names['all']
+                    fi_features = features['all']
                     fi_importances = np.mean(np.abs(shap_values), axis=0)
                 elif config.feature_importance == "none":
-                    fi_features = feature_names['all']
-                    fi_importances = np.zeros(len(feature_names['all']))
+                    fi_features = features['all']
+                    fi_importances = np.zeros(len(features['all']))
                 else:
                     raise ValueError(f"Unsupported feature importance method: {config.feature_importance}")
                 feature_importances = pd.DataFrame.from_dict(
@@ -352,11 +370,11 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     'bagging_fraction': config.model.bagging_fraction,
                     'bagging_freq': config.model.bagging_freq,
                     'verbose': config.model.verbose,
-                    'metric': config.model.metric
+                    'metric': config.model.metric,
                 }
 
-                ds_trn = lightgbm.Dataset(X_trn, label=y_trn, feature_name=feature_names['all'])
-                ds_val = lightgbm.Dataset(X_val, label=y_val, reference=ds_trn, feature_name=feature_names['all'])
+                ds_trn = lightgbm.Dataset(X_trn, label=y_trn, feature_name=features['all'], categorical_feature=features['cat'])
+                ds_val = lightgbm.Dataset(X_val, label=y_val, reference=ds_trn, feature_name=features['all'], categorical_feature=features['cat'])
 
                 evals_result = {}
                 model = lightgbm.train(
@@ -372,8 +390,9 @@ def process_regression(config: DictConfig) -> Optional[float]:
 
                 y_trn_pred = model.predict(X_trn, num_iteration=model.best_iteration).astype('float32')
                 y_val_pred = model.predict(X_val, num_iteration=model.best_iteration).astype('float32')
-                if is_tst:
-                    y_tst_pred = model.predict(X_tst, num_iteration=model.best_iteration).astype('float32')
+                y_tst_pred = {}
+                for tst_set_name in ids_tst:
+                    y_tst_pred[tst_set_name] = model.predict(X_tst[tst_set_name], num_iteration=model.best_iteration).astype('float32')
 
                 loss_info = {
                     'epoch': list(range(len(evals_result['train'][config.model.metric]))),
@@ -386,23 +405,26 @@ def process_regression(config: DictConfig) -> Optional[float]:
                     fi_importances = list(model.feature_importance())
                 elif config.feature_importance.startswith("shap"):
                     if config.feature_importance == "shap_tree":
-                        explainer = shap.TreeExplainer(model, data=X_trn, feature_perturbation='interventional')
+                        explainer = shap.TreeExplainer(model)
                         shap_values = explainer.shap_values(X_trn)
-                    elif config.feature_importance == "shap_kernel":
+                    elif config.feature_importance in ["shap_kernel", "shap_sampling"]:
                         def predict_func(X):
                             y = model.predict(X, num_iteration=model.best_iteration)
                             return y
-                        explainer = shap.KernelExplainer(predict_func, X_trn)
+                        if config.feature_importance == "shap_kernel":
+                            explainer = shap.KernelExplainer(predict_func, X_trn)
+                        elif config.feature_importance == "shap_sampling":
+                            explainer = shap.SamplingExplainer(predict_func, X_trn)
                         shap_values = explainer.shap_values(X_trn)
                         if isinstance(shap_values, list):
                             shap_values = shap_values[0]
                     else:
                         raise ValueError(f"Unsupported feature importance method: {config.feature_importance}")
-                    fi_features = feature_names['all']
+                    fi_features = features['all']
                     fi_importances = np.mean(np.abs(shap_values), axis=0)
                 elif config.feature_importance == "none":
-                    fi_features = feature_names['all']
-                    fi_importances = np.zeros(len(feature_names['all']))
+                    fi_features = features['all']
+                    fi_importances = np.zeros(len(features['all']))
                 else:
                     raise ValueError(f"Unsupported feature importance method: {config.feature_importance}")
                 feature_importances = pd.DataFrame.from_dict(
@@ -422,8 +444,9 @@ def process_regression(config: DictConfig) -> Optional[float]:
 
                 y_trn_pred = model.predict(X_trn).astype('float32')
                 y_val_pred = model.predict(X_val).astype('float32')
-                if is_tst:
-                    y_tst_pred = model.predict(X_tst).astype('float32')
+                y_tst_pred = {}
+                for tst_set_name in ids_tst:
+                    y_tst_pred[tst_set_name] = model.predict(X_tst[tst_set_name]).astype('float32')
 
                 loss_info = {
                     'epoch': [0],
@@ -432,27 +455,30 @@ def process_regression(config: DictConfig) -> Optional[float]:
                 }
 
                 if config.feature_importance == "native":
-                    fi_features = ['Intercept'] + feature_names['all']
+                    fi_features = ['Intercept'] + features['all']
                     fi_importances = [model.intercept_] + list(model.coef_)
                 elif config.feature_importance.startswith("shap"):
                     if config.feature_importance == "shap_tree":
                         explainer = shap.TreeExplainer(model, data=X_trn, feature_perturbation='interventional')
                         shap_values = explainer.shap_values(X_trn)
-                    elif config.feature_importance == "shap_kernel":
+                    elif config.feature_importance in ["shap_kernel", "shap_sampling"]:
                         def predict_func(X):
                             y = model.predict(X)
                             return y
-                        explainer = shap.KernelExplainer(predict_func, X_trn)
+                        if config.feature_importance == "shap_kernel":
+                            explainer = shap.KernelExplainer(predict_func, X_trn)
+                        elif config.feature_importance == "shap_sampling":
+                            explainer = shap.SamplingExplainer(predict_func, X_trn)
                         shap_values = explainer.shap_values(X_trn)
                         if isinstance(shap_values, list):
                             shap_values = shap_values[0]
                     else:
                         raise ValueError(f"Unsupported feature importance method: {config.feature_importance}")
-                    fi_features = feature_names['all']
+                    fi_features = features['all']
                     fi_importances = np.mean(np.abs(shap_values), axis=0)
                 elif config.feature_importance == "none":
-                    fi_features = feature_names['all']
-                    fi_importances = np.zeros(len(feature_names['all']))
+                    fi_features = features['all']
+                    fi_importances = np.zeros(len(features['all']))
                 else:
                     raise ValueError(f"Unsupported feature importance method: {config.feature_importance}")
                 feature_importances = pd.DataFrame.from_dict(
@@ -468,16 +494,24 @@ def process_regression(config: DictConfig) -> Optional[float]:
         else:
             raise ValueError(f"Unsupported model_framework: {model_framework}")
 
-        metrics_trn = eval_regression(config, y_trn, y_trn_pred, loggers, 'trn', is_log=True, is_save=False)
+        metrics_trn = eval_regression(config, y_trn.values, y_trn_pred, loggers, 'trn', is_log=True, is_save=False)
+        metrics_all = metrics_trn.copy()
         for m in metrics_trn.index.values:
             metrics_cv.at[fold_idx, f"trn_{m}"] = metrics_trn.at[m, 'trn']
-        metrics_val = eval_regression(config, y_val, y_val_pred, loggers, 'val', is_log=True, is_save=False)
+        metrics_val = eval_regression(config, y_val.values, y_val_pred, loggers, 'val', is_log=True, is_save=False)
+        metrics_all.loc[metrics_all.index.values, "val"] = metrics_val.loc[metrics_all.index.values, "val"]
         for m in metrics_val.index.values:
             metrics_cv.at[fold_idx, f"val_{m}"] = metrics_val.at[m, 'val']
-        if is_tst:
-            metrics_tst = eval_regression(config, y_tst, y_tst_pred, loggers, 'tst', is_log=True, is_save=False)
-            for m in metrics_tst.index.values:
-                metrics_cv.at[fold_idx, f"tst_{m}"] = metrics_tst.at[m, 'tst']
+        metrics_tst = {}
+        for tst_set_name in ids_tst:
+            metrics_tst[tst_set_name] = eval_regression(config, y_tst[tst_set_name].values, y_tst_pred[tst_set_name], loggers, tst_set_name, is_log=True, is_save=False)
+            metrics_all.loc[metrics_all.index.values, tst_set_name] = metrics_tst[tst_set_name].loc[metrics_all.index.values, tst_set_name]
+            for m in metrics_tst[tst_set_name].index.values:
+                metrics_cv.at[fold_idx, f"{tst_set_name}_{m}"] = metrics_tst[tst_set_name].at[m, tst_set_name]
+        metrics_all["trn_val"] = metrics_all.loc[:, ['trn', 'val']].sum(axis=1) / 2
+        for tst_set_name in ids_tst:
+            metrics_all[f"trn_val_{tst_set_name}"] = metrics_all.loc[:, ['trn', 'val', tst_set_name]].sum(axis=1) / 3
+            metrics_all[f"val_{tst_set_name}"] = metrics_all.loc[:, ['val', tst_set_name]].sum(axis=1) / 2
 
         # Make sure everything closed properly
         if model_framework == "pytorch":
@@ -503,28 +537,19 @@ def process_regression(config: DictConfig) -> Optional[float]:
         else:
             raise ValueError(f"Unsupported model_framework: {model_framework}")
 
-        if config.optimized_part == "trn":
-            metrics_main = metrics_trn
-        elif config.optimized_part == "val":
-            metrics_main = metrics_val
-        elif config.optimized_part == "tst":
-            metrics_main = metrics_tst
-        else:
-            raise ValueError(f"Unsupported config.optimized_part: {config.optimized_part}")
-
         if config.direction == "min":
-            if metrics_main.at[config.optimized_metric, config.optimized_part] < best["optimized_metric"]:
+            if metrics_all.at[config.optimized_metric, config.optimized_part] < best["optimized_metric"]:
                 is_renew = True
             else:
                 is_renew = False
         elif config.direction == "max":
-            if metrics_main.at[config.optimized_metric, config.optimized_part] > best["optimized_metric"]:
+            if metrics_all.at[config.optimized_metric, config.optimized_part] > best["optimized_metric"]:
                 is_renew = True
             else:
                 is_renew = False
 
         if is_renew:
-            best["optimized_metric"] = metrics_main.at[config.optimized_metric, config.optimized_part]
+            best["optimized_metric"] = metrics_all.at[config.optimized_metric, config.optimized_part]
             if model_framework == "pytorch":
                 if Path(f"{config.callbacks.model_checkpoint.dirpath}{config.callbacks.model_checkpoint.filename}.ckpt").is_file():
                     model = type(model).load_from_checkpoint(checkpoint_path=f"{config.callbacks.model_checkpoint.dirpath}{config.callbacks.model_checkpoint.filename}.ckpt")
@@ -534,9 +559,9 @@ def process_regression(config: DictConfig) -> Optional[float]:
 
                 def predict_func(X):
                     batch = {
-                        'all': torch.from_numpy(np.float32(X[:, feature_names['all_ids']])),
-                        'continuous': torch.from_numpy(np.float32(X[:, feature_names['con_ids']])),
-                        'categorical': torch.from_numpy(np.float32(X[:, feature_names['cat_ids']])),
+                        'all': torch.from_numpy(np.float32(X[:, features['all_ids']])),
+                        'continuous': torch.from_numpy(np.float32(X[:, features['con_ids']])),
+                        'categorical': torch.from_numpy(np.int32(X[:, features['cat_ids']])),
                     }
                     tmp = best["model"](batch)
                     return tmp.cpu().detach().numpy()
@@ -547,11 +572,13 @@ def process_regression(config: DictConfig) -> Optional[float]:
 
                 if config.model.name == "xgboost":
                     def predict_func(X):
-                        X = xgb.DMatrix(X, feature_names=feature_names['all'])
+                        X = xgb.DMatrix(X, feature_names=features['all'], enable_categorical=True)
                         y = best["model"].predict(X)
                         return y
                 elif config.model.name == "catboost":
                     def predict_func(X):
+                        X = pd.DataFrame(data=X, columns=features["all"])
+                        X[features["cat"]] = X[features["cat"]].astype('int32')
                         y = best["model"].predict(X)
                         return y
                 elif config.model.name == "lightgbm":
@@ -573,23 +600,30 @@ def process_regression(config: DictConfig) -> Optional[float]:
             best['fold'] = fold_idx
             best['ids_trn'] = ids_trn
             best['ids_val'] = ids_val
-            df.loc[df.index[ids_trn], "Estimation"] = y_trn_pred
-            df.loc[df.index[ids_val], "Estimation"] = y_val_pred
-            if is_tst:
-                df.loc[df.index[ids_tst], "Estimation"] = y_tst_pred
+            df.loc[df.index[ids_trn], "Prediction"] = y_trn_pred
+            df.loc[df.index[ids_val], "Prediction"] = y_val_pred
+            for tst_set_name in ids_tst:
+                if tst_set_name != 'tst_all':
+                    df.loc[df.index[ids_tst[tst_set_name]], "Prediction"] = y_tst_pred[tst_set_name]
+
+        if model_framework == "pytorch":
+            fns = glob.glob(f"{ckpt_name}*.ckpt")
+            fns.remove(f"{ckpt_name}_fold_{best['fold']:04d}.ckpt")
+            for fn in fns:
+                os.remove(fn)
 
         metrics_cv.at[fold_idx, 'fold'] = fold_idx
-        metrics_cv.at[fold_idx, 'optimized_metric'] = metrics_main.at[config.optimized_metric, config.optimized_part]
+        metrics_cv.at[fold_idx, 'optimized_metric'] = metrics_all.at[config.optimized_metric, config.optimized_part]
         feature_importances_cv.at[fold_idx, 'fold'] = fold_idx
-        for feat in feature_names['all']:
+        for feat in features['all']:
             feature_importances_cv.at[fold_idx, feat] = feature_importances.loc[feature_importances['feature'] == feat, 'importance'].values[0]
 
-    df = df.astype({"Estimation": 'float32'})
+    df = df.astype({"Prediction": 'float32'})
     metrics_cv.to_excel(f"metrics_cv.xlsx", index=False)
     feature_importances_cv.to_excel(f"feature_importances_cv.xlsx", index=False)
     cv_ids = df.loc[:, [f"fold_{fold_idx:04d}" for fold_idx in metrics_cv.loc[:, 'fold'].values]]
     cv_ids.to_excel(f"cv_ids.xlsx", index=True)
-    predictions = df.loc[:, [f"fold_{best['fold']:04d}", target_name, "Estimation"]]
+    predictions = df.loc[:, [f"fold_{best['fold']:04d}", target, "Prediction"]]
     predictions.to_excel(f"predictions.xlsx", index=True)
 
     datamodule.ids_trn = best['ids_trn']
@@ -597,12 +631,7 @@ def process_regression(config: DictConfig) -> Optional[float]:
 
     datamodule.plot_split(f"_best_{best['fold']:04d}")
 
-    if model_framework == "pytorch":
-        fns = glob.glob(f"{ckpt_name}*.ckpt")
-        fns.remove(f"{ckpt_name}_fold_{best['fold']:04d}.ckpt")
-        for fn in fns:
-            os.remove(fn)
-    elif model_framework == "stand_alone":
+    if model_framework == "stand_alone":
         eval_loss(best['loss_info'], None, is_log=True, is_save=False, file_suffix=f"_best_{best['fold']:04d}")
         if config.model.name == "xgboost":
             best["model"].save_model(f"epoch_{best['model'].best_iteration}_best_{best['fold']:04d}.model")
@@ -615,190 +644,134 @@ def process_regression(config: DictConfig) -> Optional[float]:
         else:
             raise ValueError(f"Model {config.model.name} is not supported")
 
-    y_trn = df.loc[df.index[datamodule.ids_trn], target_name].values
-    y_trn_pred = df.loc[df.index[datamodule.ids_trn], "Estimation"].values
-    y_val = df.loc[df.index[datamodule.ids_val], target_name].values
-    y_val_pred = df.loc[df.index[datamodule.ids_val], "Estimation"].values
-    if is_tst:
-        y_tst = df.loc[df.index[datamodule.ids_tst], target_name].values
-        y_tst_pred = df.loc[df.index[datamodule.ids_tst], "Estimation"].values
+    y_trn = df.loc[df.index[datamodule.ids_trn], target].values
+    y_trn_pred = df.loc[df.index[datamodule.ids_trn], "Prediction"].values
+    y_val = df.loc[df.index[datamodule.ids_val], target].values
+    y_val_pred = df.loc[df.index[datamodule.ids_val], "Prediction"].values
+    y_tst = {}
+    y_tst_pred = {}
+    for tst_set_name in ids_tst:
+        y_tst[tst_set_name] = df.loc[df.index[datamodule.ids_tst[tst_set_name]], target].values
+        y_tst_pred[tst_set_name] = df.loc[df.index[datamodule.ids_tst[tst_set_name]], "Prediction"].values
 
-    metrics_trn = eval_regression(config, y_trn, y_trn_pred, None, 'trn', is_log=False, is_save=True, file_suffix=f"_best_{best['fold']:04d}")
+    metrics_trn = eval_regression(config, y_trn, y_trn_pred, None, 'trn', is_log=False, is_save=False, file_suffix=f"_best_{best['fold']:04d}")
     metrics_names = metrics_trn.index.values
     metrics_trn_cv = pd.DataFrame(index=[f"{x}_cv_mean" for x in metrics_names] + [f"{x}_cv_std" for x in metrics_names], columns=['trn'])
     for metric in metrics_names:
         metrics_trn_cv.at[f"{metric}_cv_mean", 'trn'] = metrics_cv[f"trn_{metric}"].mean()
         metrics_trn_cv.at[f"{metric}_cv_std", 'trn'] = metrics_cv[f"trn_{metric}"].std()
     metrics_trn = pd.concat([metrics_trn, metrics_trn_cv])
-    metrics_trn.to_excel(f"metrics_trn_best_{best['fold']:04d}.xlsx", index=True, index_label="metric")
+    metrics_all = metrics_trn.copy()
 
-    metrics_val = eval_regression(config, y_val, y_val_pred, None, 'val', is_log=False, is_save=True, file_suffix=f"_best_{best['fold']:04d}")
+    metrics_val = eval_regression(config, y_val, y_val_pred, None, 'val', is_log=False, is_save=False, file_suffix=f"_best_{best['fold']:04d}")
     metrics_val_cv = pd.DataFrame(index=[f"{x}_cv_mean" for x in metrics_names] + [f"{x}_cv_std" for x in metrics_names], columns=['val'])
     for metric in metrics_names:
         metrics_val_cv.at[f"{metric}_cv_mean", 'val'] = metrics_cv[f"val_{metric}"].mean()
         metrics_val_cv.at[f"{metric}_cv_std", 'val'] = metrics_cv[f"val_{metric}"].std()
     metrics_val = pd.concat([metrics_val, metrics_val_cv])
-    metrics_val.to_excel(f"metrics_val_best_{best['fold']:04d}.xlsx", index=True, index_label="metric")
+    metrics_all.loc[metrics_all.index.values, 'val'] = metrics_val.loc[metrics_all.index.values, 'val']
 
-    if is_tst:
-        metrics_tst = eval_regression(config, y_tst, y_tst_pred, None, 'tst', is_log=False, is_save=True, file_suffix=f"_best_{best['fold']:04d}")
-        metrics_tst_cv = pd.DataFrame(index=[f"{x}_cv_mean" for x in metrics_names] + [f"{x}_cv_std" for x in metrics_names], columns=['tst'])
+    metrics_tst = {}
+    metrics_tst_cv = {}
+    for tst_set_name in ids_tst:
+        metrics_tst[tst_set_name] = eval_regression(config, y_tst[tst_set_name], y_tst_pred[tst_set_name], None, tst_set_name, is_log=False, is_save=False, file_suffix=f"_best_{best['fold']:04d}")
+        metrics_tst_cv[tst_set_name] = pd.DataFrame(index=[f"{x}_cv_mean" for x in metrics_names] + [f"{x}_cv_std" for x in metrics_names], columns=[tst_set_name])
         for metric in metrics_names:
-            metrics_tst_cv.at[f"{metric}_cv_mean", 'tst'] = metrics_cv[f"tst_{metric}"].mean()
-            metrics_tst_cv.at[f"{metric}_cv_std", 'tst'] = metrics_cv[f"tst_{metric}"].std()
-        metrics_tst = pd.concat([metrics_tst, metrics_tst_cv])
+            metrics_tst_cv[tst_set_name].at[f"{metric}_cv_mean", tst_set_name] = metrics_cv[f"{tst_set_name}_{metric}"].mean()
+            metrics_tst_cv[tst_set_name].at[f"{metric}_cv_std", tst_set_name] = metrics_cv[f"{tst_set_name}_{metric}"].std()
+        metrics_tst[tst_set_name] = pd.concat([metrics_tst[tst_set_name], metrics_tst_cv[tst_set_name]])
+        metrics_all.loc[metrics_all.index.values, tst_set_name] = metrics_tst[tst_set_name].loc[metrics_all.index.values, tst_set_name]
 
-        metrics_val_tst_cv_mean = pd.DataFrame(index=[f"{x}_cv_mean_val_tst" for x in metrics_names],columns=['val', 'tst'])
-        for metric in metrics_names:
-            val_tst_value = 0.5 * (metrics_val.at[f"{metric}_cv_mean", 'val'] + metrics_tst.at[f"{metric}_cv_mean", 'tst'])
-            metrics_val_tst_cv_mean.at[f"{metric}_cv_mean_val_tst", 'val'] = val_tst_value
-            metrics_val_tst_cv_mean.at[f"{metric}_cv_mean_val_tst", 'tst'] = val_tst_value
-        metrics_val = pd.concat([metrics_val, metrics_val_tst_cv_mean.loc[:, ['val']]])
-        metrics_tst = pd.concat([metrics_tst, metrics_val_tst_cv_mean.loc[:, ['tst']]])
-        metrics_val.to_excel(f"metrics_val_best_{best['fold']:04d}.xlsx", index=True, index_label="metric")
-        metrics_tst.to_excel(f"metrics_tst_best_{best['fold']:04d}.xlsx", index=True, index_label="metric")
+    metrics_all["trn_val"] = metrics_all.loc[:,['trn','val']].sum(axis=1) / 2
+    for tst_set_name in ids_tst:
+        metrics_all[f"trn_val_{tst_set_name}"] = metrics_all.loc[:, ['trn', 'val', tst_set_name]].sum(axis=1) / 3
+        metrics_all[f"val_{tst_set_name}"] = metrics_all.loc[:, ['val', tst_set_name]].sum(axis=1) / 2
+    metrics_all.to_excel(f"metrics_all_best_{best['fold']:04d}.xlsx", index=True, index_label="metric")
 
-    if config.optimized_part == "trn":
-        metrics_main = metrics_trn
-    elif config.optimized_part == "val":
-        metrics_main = metrics_val
-    elif config.optimized_part == "tst":
-        metrics_main = metrics_tst
-    else:
-        raise ValueError(f"Unsupported config.optimized_part: {config.optimized_part}")
-
+    features_labels = []
+    for f in best['feature_importances']['feature'].values:
+        features_labels.append(features['labels'][f])
+    best['feature_importances']['feature_label'] = features_labels
     save_feature_importance(best['feature_importances'], config.num_top_features)
 
-    formula = f"Estimation ~ {target_name}"
-    model_linear = smf.ols(formula=formula, data=df.loc[df.index[datamodule.ids_trn], :]).fit()
-    df.loc[df.index[datamodule.ids_trn], "Estimation acceleration"] = df.loc[df.index[datamodule.ids_trn], "Estimation"].values - model_linear.predict(df.loc[df.index[datamodule.ids_trn], :])
-    df.loc[df.index[datamodule.ids_val], "Estimation acceleration"] = df.loc[df.index[datamodule.ids_val], "Estimation"].values - model_linear.predict(df.loc[df.index[datamodule.ids_val], :])
-    if is_tst:
-        df.loc[df.index[datamodule.ids_tst], "Estimation acceleration"] = df.loc[df.index[datamodule.ids_tst], "Estimation"].values - model_linear.predict(df.loc[df.index[datamodule.ids_tst], :])
-    fig = go.Figure()
-    add_scatter_trace(fig, df.loc[df.index[datamodule.ids_trn], target_name].values, df.loc[df.index[datamodule.ids_trn], "Estimation"].values, f"Train")
-    add_scatter_trace(fig, df.loc[df.index[datamodule.ids_trn], target_name].values, model_linear.fittedvalues.values, "", "lines")
-    add_scatter_trace(fig, df.loc[df.index[datamodule.ids_val], target_name].values, df.loc[df.index[datamodule.ids_val], "Estimation"].values, f"Val")
-    if is_tst:
-        add_scatter_trace(fig, df.loc[df.index[datamodule.ids_tst], target_name].values, df.loc[df.index[datamodule.ids_tst], "Estimation"].values, f"Test")
-    add_layout(fig, target_name, f"Estimation", f"")
-    fig.update_layout({'colorway': ['blue', 'blue', 'red', 'green']})
-    fig.update_layout(legend_font_size=20)
-    fig.update_layout(margin=go.layout.Margin(l=90, r=20, b=80, t=65, pad=0))
-    save_figure(fig, f"scatter")
+    df["Prediction error"] = df['Prediction'] - df[f"{target}"]
+    df_fig = df.loc[:, [target, 'Prediction', "Prediction error"]].copy()
+    df_fig.loc[df.index[datamodule.ids_trn], 'Part'] = "trn"
+    df_fig.loc[df.index[datamodule.ids_val], 'Part'] = "val"
+    color_order = ["trn", "val"]
+    for tst_set_name in ids_tst:
+        if tst_set_name != 'tst_all':
+            df_fig.loc[df.index[datamodule.ids_tst[tst_set_name]], 'Part'] = tst_set_name
+            color_order.append(tst_set_name)
 
-    dist_num_bins = 15
-    fig = go.Figure()
-    fig.add_trace(
-        go.Violin(
-            y=df.loc[df.index[datamodule.ids_trn], "Estimation acceleration"].values,
-            name=f"Train",
-            box_visible=True,
-            meanline_visible=True,
-            showlegend=True,
-            line_color='black',
-            fillcolor='blue',
-            marker=dict(color='blue', line=dict(color='black', width=0.3), opacity=0.8),
-            points='all',
-            bandwidth=np.ptp(df.loc[df.index[datamodule.ids_trn], "Estimation acceleration"].values) / dist_num_bins,
-            opacity=0.8
-        )
+    plt.figure()
+    sns.set_theme(style='whitegrid')
+    xy_min = df_fig[[target,'Prediction']].min().min()
+    xy_max = df_fig[[target,'Prediction']].max().max()
+    xy_ptp = xy_max - xy_min
+    scatter = sns.scatterplot(
+        data=df_fig,
+        x=target,
+        y="Prediction",
+        hue="Part",
+        palette=colors,
+        linewidth=0.3,
+        alpha=0.75,
+        edgecolor="k",
+        s=25,
+        hue_order=color_order
     )
-    fig.add_trace(
-        go.Violin(
-            y=df.loc[df.index[datamodule.ids_val], "Estimation acceleration"].values,
-            name=f"Val",
-            box_visible=True,
-            meanline_visible=True,
-            showlegend=True,
-            line_color='black',
-            fillcolor='red',
-            marker=dict(color='red', line=dict(color='black', width=0.3), opacity=0.8),
-            points='all',
-            bandwidth=np.ptp(df.loc[df.index[datamodule.ids_val], "Estimation acceleration"].values) / dist_num_bins,
-            opacity=0.8
-        )
+    scatter.set_xlabel(target_label)
+    scatter.set_ylabel("Prediction")
+    scatter.set_xlim(xy_min - 0.1 * xy_ptp, xy_max + 0.1 * xy_ptp)
+    scatter.set_ylim(xy_min - 0.1 * xy_ptp, xy_max + 0.1 * xy_ptp)
+    plt.gca().plot(
+        [xy_min - 0.1 * xy_ptp, xy_max + 0.1 * xy_ptp],
+        [xy_min - 0.1 * xy_ptp, xy_max + 0.1 * xy_ptp],
+        color='k',
+        linestyle='dashed',
+        linewidth=1
     )
-    if is_tst:
-        fig.add_trace(
-            go.Violin(
-                y=df.loc[df.index[datamodule.ids_tst], "Estimation acceleration"].values,
-                name=f"Test",
-                box_visible=True,
-                meanline_visible=True,
-                showlegend=True,
-                line_color='black',
-                fillcolor='green',
-                marker=dict(color='green', line=dict(color='black', width=0.3), opacity=0.8),
-                points='all',
-                bandwidth=np.ptp(df.loc[df.index[datamodule.ids_tst], "Estimation acceleration"].values) / 50,
-                opacity=0.8
-            )
-        )
-    add_layout(fig, "", "Estimation acceleration", f"")
-    fig.update_layout({'colorway': ['red', 'blue', 'green']})
-    stat_01, pval_01 = mannwhitneyu(
-        df.loc[df.index[datamodule.ids_trn], "Estimation acceleration"].values,
-        df.loc[df.index[datamodule.ids_val], "Estimation acceleration"].values,
-        alternative='two-sided'
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.savefig(f"scatter.png", bbox_inches='tight', dpi=400)
+    plt.savefig(f"scatter.pdf", bbox_inches='tight')
+    plt.close()
+
+    plt.figure()
+    sns.set_theme(style='whitegrid')
+    violin = sns.violinplot(
+        data=df_fig,
+        x="Part",
+        y='Prediction error',
+        palette=colors,
+        scale='width',
+        order=color_order,
+        saturation=0.75,
     )
-    if is_tst:
-        stat_02, pval_02 = mannwhitneyu(
-            df.loc[df.index[datamodule.ids_trn], "Estimation acceleration"].values,
-            df.loc[df.index[datamodule.ids_tst], "Estimation acceleration"].values,
-            alternative='two-sided'
-        )
-        stat_12, pval_12 = mannwhitneyu(
-            df.loc[df.index[datamodule.ids_val], "Estimation acceleration"].values,
-            df.loc[df.index[datamodule.ids_tst], "Estimation acceleration"].values,
-            alternative='two-sided'
-        )
-        fig = add_p_value_annotation(fig, {(0, 1): pval_01, (1, 2): pval_12, (0, 2): pval_02})
-    else:
-        fig = add_p_value_annotation(fig, {(0, 1): pval_01})
-    fig.update_layout(title_xref='paper')
-    fig.update_layout(legend_font_size=20)
-    fig.update_layout(
-        margin=go.layout.Margin(
-            l=110,
-            r=20,
-            b=50,
-            t=90,
-            pad=0
-        )
-    )
-    fig.update_layout(
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.25,
-            xanchor="center",
-            x=0.5
-        )
-    )
-    save_figure(fig, f"violin")
+    violin.set_ylabel("Error")
+    plt.savefig(f"violin.png", bbox_inches='tight', dpi=400)
+    plt.savefig(f"violin.pdf", bbox_inches='tight')
+    plt.close()
 
     expl_data = {
         'model': best["model"],
         'predict_func': best['predict_func'],
         'df': df,
-        'feature_names': feature_names['all'],
-        'target_name': target_name,
+        'features': features,
+        'target': target,
         'ids': {
             'all': np.arange(df.shape[0]),
             'trn': datamodule.ids_trn,
             'val': datamodule.ids_val,
-            'tst': datamodule.ids_tst
         }
     }
+    for tst_set_name in ids_tst:
+        expl_data['ids'][tst_set_name] = ids_tst[tst_set_name]
+
     if config.is_shap == True:
         explain_shap(config, expl_data)
 
     # Return metric score for hyperparameter optimization
     optimized_metric = config.get("optimized_metric")
-    optimized_mean = config.get("optimized_mean")
     if optimized_metric:
-        if optimized_mean == "":
-            return metrics_main.at[optimized_metric, config.optimized_part]
-        else:
-            return metrics_main.at[f"{optimized_metric}_{optimized_mean}", config.optimized_part]
+        return metrics_all.at[optimized_metric, config.optimized_part]

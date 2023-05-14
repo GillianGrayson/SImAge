@@ -43,17 +43,20 @@ The directory structure is:
 │   ├── logger                <- Logger configs
 │   ├── model                 <- Model configs
 │   ├── trainer               <- Trainer configs
-│   └── main.yaml             <- Main configs
+│   ├── trn_val_tst.yaml      <- Main config for train, validation and testing
+│   └── inferernce.yaml       <- Main config model inference
 │
 ├── data                   <- Immunological data and generated results
 │
 ├── src                    <- Source code
 │   ├── datamodules           <- Datamodules
 │   ├── models                <- Models
+│   ├── tasks                 <- Scripts for regression task
 │   └── utils                 <- Utility scripts
 │
 ├── requirements.txt       <- File for installing python dependencies
-├── run.py                 <- Main run file
+├── run_trn_val_tst.py     <- Main run file for train, validation and testing
+├── run_inference.py       <- Main run file for model inference
 │
 ├── readme                 <- Directory with auxiliary images for README.md
 ├── README.md              <- This file
@@ -79,7 +82,11 @@ pip install -r requirements.txt
 ```
 
 ## Data description
-The immunological profile data are values of 46 cytokine concentrations in blood plasma for 260 individuals.
+The immunological profile data are values of 46 cytokine concentrations in blood plasma for 343 individuals:
+ - Train/Validation - 260 healthy volunteers from 19 to 96 years, recruited in 2019-2021
+ - Test Controls – 40 healthy volunteers from 21 to 101 years, recruited in 2022-2023.
+ - Test ESRD – 43 patients with ESRD on hemodialysis from 25 to 88 years, recruited in 2019-2021, died by spring 2023.
+
 The chronological age regression problem is solved for these data.
 
 ### File structure:
@@ -88,11 +95,11 @@ The chronological age regression problem is solved for these data.
    ├── models                 <- Results of experiments for different models
    ├── data.xlsx              <- Dataframe with immunological data
    ├── feats_con_46.xlsx      <- File with all 46 biomarkers
-   └── feats_con_10.xlsx      <- File with the most important 10 biomarkers
+   ├── feats_con_10.xlsx      <- File with the most important 10 biomarkers
+   └── SImAge.ckpt            <- SImAge model file
 ```
 - `data.xlsx` is a dataframe, each row corresponds to sample, each column corresponds to feature. 
-In addition to immunological features there are also `Age` (in years).
-
+In addition to immunological features there are also `Age` (in years), `Sex`, `Status` (controls or ESRD), `SImAge` prediction, `SImAge acceleration` (difference between `SImAge` and chronological age).
 - `feats_con_*.xlsx` are dataframes which contains features (immunological biomarkers), which will be used as input features of models.
 
 - `models` is the directory in which the results of the different models (logs, figures, tables) will be saved.
@@ -100,14 +107,14 @@ In addition to immunological features there are also `Age` (in years).
 
 ## Configuring experiments
 
-### Main config
+### Main configs
 
-Location: [configs/main.yaml](configs/main.yaml) <br>
-Main project config contains default training configuration.<br>
-It determines how config is composed, when command `python main.py` is simply executing.<br>
+#### Training configuration<br>
+Location: [configs/trn_val_tst.yaml](configs/trn_val_tst.yaml) <br>
+It determines how config is composed, when command `python run_trn_val_tst.py` is simply executing.<br>
 
 <details>
-<summary><b>Main project config details</b></summary>
+<summary><b>Main training config details</b></summary>
 
 ```yaml
 # order of defaults determines the order in which configs override each other
@@ -119,8 +126,39 @@ defaults:
   - callbacks: default    # Callbacks for DNN models
   - logger: none          # Loggers for DNN models
   - hydra: default.yaml   # Output paths for logs
-  - model: danet          # Model
-  - hparams_search: null  # Model-specific hyperparameters
+
+  # Models options:
+  - model: widedeep_ft_transformer              # Model
+  - hparams_search: widedeep_ft_transformer     # Model-specific hyperparameters
+
+  # enable color logging
+  - override hydra/hydra_logging: colorlog
+  - override hydra/job_logging: colorlog
+
+```
+</details>
+
+#### Inference configuration<br>
+Location: [configs/inference.yaml](configs/inference.yaml) <br>
+It determines how config is composed, when command `python run_inference.py` is simply executing.<br>
+
+<details>
+<summary><b>Main inference config details</b></summary>
+
+```yaml
+# order of defaults determines the order in which configs override each other
+defaults:
+  - _self_
+  - experiment: inference     # Global parameters of experiment
+  - datamodule: tabular       # Information about dataset 
+  - trainer: null             # Run configuration for DNN models
+  - callbacks: null           # Callbacks for DNN models
+  - logger: none              # Loggers for DNN models
+  - hydra: default            # Output paths for logs
+
+  # Models options:
+  - model: widedeep_ft_transformer      # Model
+  - hparams_search: null                # Model-specific hyperparameters
 
   # enable color logging
   - override hydra/hydra_logging: colorlog
@@ -132,8 +170,8 @@ defaults:
 ### Experiment config
 
 Location: [configs/experiment](configs/experiment)<br>
-Experiment config contains global parameters.<br>
-Executing command: `python main.py experiment=train`.<br>
+Experiment config contains global parameters for training process.<br>
+Executing command: `python run_trn_val_tst.py experiment=trn_val_tst`.<br>
 
 <details>
 <summary><b>Experiment config details</b></summary>
@@ -142,14 +180,14 @@ Executing command: `python main.py experiment=train`.<br>
 # @package _global_
 
 # Global params
-seed: 42            # Random seed
+seed: 1337            # Random seed
 task: "regression"  # Task type
 target: "Age"       # Target column name
 
 # Cross-validation params
 cv_is_split: True   # Perform cross-validation?
 cv_n_splits: 5      # Number of splits in cross-validation
-cv_n_repeats: 5     # Number of repeats in cross-validation
+cv_n_repeats: 1     # Number of repeats in cross-validation
 
 # Data params
 in_dim: 10      # Number of input features
@@ -158,14 +196,13 @@ embed_dim: 16   # Default embedding dimension
 
 # Optimization metrics params
 optimized_metric: "mean_absolute_error"   # All metrics are listed in src.tasks.metrics
-optimized_mean: "cv_mean"                 # Optimize mean result across all cross-validation splits? Options: ["", "cv_mean"]
-optimized_part: "val"                     # Optimized data partition. Options: ["val", "tst"]
+optimized_part: "val"                     # Optimized data partition. Options: ["val", "Test Controls"]
 direction: "min"                          # Direction of metrics optimization. Options ["min", "max"]
 
 # Run params
 max_epochs: 1000          # Maximum number of epochs
-patience: 100             # Number of early stopping epochs
-feature_importance: none  # Feature importance method. Options: [none, shap_deep, shap_kernel, shap_tree, native]
+patience: 50             # Number of early stopping epochs
+feature_importance: none  # Feature importance method. Options: [none, shap_deep, shap_kernel, shap_sampling, shap_tree, native]
 
 # Info params
 debug: False                # Is Debug?
@@ -181,10 +218,10 @@ data_dir: "${base_dir}"
 work_dir: "${base_dir}/models/${project_name}"
 
 # SHAP values params
-is_shap: False                      # Calculate SHAP values?
-is_shap_save: False                 # Save SHAP values?
-shap_explainer: "Tree"              # Type of explainer. Options: ["Tree", "Kernel", "Deep"]
-shap_bkgrd: "tree_path_dependent"   # Type of background data. Options: ["trn", "all", "tree_path_dependent"]
+is_shap: False                  # Calculate SHAP values?
+is_shap_save: False             # Save SHAP values?
+shap_explainer: "Sampling"      # Type of explainer. Options: ["Tree", "Kernel", "Deep", "Sampling"]
+shap_bkgrd: "trn"               # Type of background data. Options: ["trn", "all"]
 
 # Plot params
 num_top_features: 10  # Number of most important features to plot
@@ -196,7 +233,7 @@ num_examples: 10      # Number of samples to plot SHAP figures
 
 Location: [configs/datamodule](configs/datamodule)<br>
 Datamodule config contains information about loaded dataset, input and target features.<br>
-Executing command: `python main.py datamodule=tabular`.<br>
+Executing command: `python run_trn_val_tst.py datamodule=tabular`.<br>
 
 <details>
 <summary><b>Datamodule config details</b></summary>
@@ -230,7 +267,7 @@ weighted_sampler: True                                # Samplers are wighted? Fo
 Location: [configs/trainer](configs/trainer)<br>
 Trainer config contains information about different aspects of DNN training process.<br>
 This configuration file is used to initialize [PyTorch Lightning Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).<br>
-Executing command: `python main.py trainer=cpu`.<br>
+Executing command: `python run_trn_val_tst.py trainer=cpu`.<br>
 
 <details>
 <summary><b>Trainer config example</b></summary>
@@ -249,7 +286,7 @@ max_epochs: ${max_epochs}             # Stop training once this number of epochs
 
 Location: [configs/callbacks](configs/callbacks)<br>
 Callbacks config contains information about [PyTorch Lightning Callbacks](https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html) for DNN models.<br>
-Executing command: `python main.py callbacks=default`.<br>
+Executing command: `python run_trn_val_tst.py callbacks=default`.<br>
 
 <details>
 <summary><b>Default Callbacks config</b></summary>
@@ -274,6 +311,7 @@ model_checkpoint:                                         # Model checkpoint cal
   dirpath: ""                                             # Directory to save the model file
   filename: "best"                                        # Checkpoint filename
   auto_insert_metric_name: False                          # Checkpoints filenames will contain the metric name?
+  every_n_epochs: 5                                       # Number of epochs between checkpoints
 ```
 </details>
 
@@ -281,7 +319,7 @@ model_checkpoint:                                         # Model checkpoint cal
 
 Location: [configs/logger](configs/logger)<br>
 Logger config contains information about [PyTorch Lightning Loggers](https://pytorch-lightning.readthedocs.io/en/stable/extensions/logging.html) for DNN models.<br>
-Executing command: `python main.py logger=wandb`.<br>
+Executing command: `python run_trn_val_tst.py logger=wandb`.<br>
 > **Note**: Using W&B requires you to [setup account](https://www.wandb.com/) first.
 
 <details>
@@ -311,7 +349,7 @@ wandb:                                                    # W&B logger
 
 Location: [configs/hydra](configs/hydra)<br>
 Logger config contains information about output paths for logs and results in [Hydra](https://hydra.cc) framework.<br>
-Executing command: `python main.py hydra=default`.<br>
+Executing command: `python run_trn_val_tst.py hydra=default`.<br>
 
 <details>
 <summary><b>Hydra config details</b></summary>
@@ -332,7 +370,7 @@ sweep:
 
 Location: [configs/model](configs/model)<br>
 Model config contains information about selected machine learning model.<br>
-Executing command: `python main.py model=lightgbm`.<br>
+Executing command: `python run_trn_val_tst.py model=lightgbm`.<br>
 
 This study considers various machine learning models specified for tabular data.
 
@@ -384,7 +422,7 @@ patience: ${patience}       # Number of boosting iteration without improving
 Location: [configs/hparams_search](configs/hparams_search)<br>
 Hyperparameter search config contains information about the ranges of varying parameters specific to each model.<br>
 This configuration directory contains files for all the models mentioned in the previous section.<br>
-Executing command: `python main.py model=lightgbm hparams_search=lightgbm`.<br>
+Executing command: `python run_trn_val_tst.py model=lightgbm hparams_search=lightgbm`.<br>
 
 The searching process of the parameters' best combination is performed by 
 [Optuna Sweeper Hydra plugin](https://hydra.cc/docs/plugins/optuna_sweeper/).
@@ -446,7 +484,7 @@ If necessary, the configuration files described in the previous section can be c
 Run training process of the selected model:
 
 ```bash
-python run.py model=lightgbm
+python run_trn_val_tst.py model=lightgbm
 ```
 
 ### Hyperparameter Search
@@ -456,7 +494,7 @@ Create a sweep over hyperparameters with Optuna:
 ```bash
 # This will run hyperparameter search defined in `configs/hparams_search/lightgbm.yaml`
 # Over chosen experiment config for LightGBM model `configs/model/lightgbm.yaml`
-python run.py --multirun model=lightgbm hparams_search=lightgbm
+python run_trn_val_tst.py --multirun model=lightgbm hparams_search=lightgbm
 ```
 > **Warning**: Optuna sweeps are not failure-resistant (if one job crashes then the whole sweep crashes).
 
@@ -469,7 +507,7 @@ python run.py --multirun model=lightgbm hparams_search=lightgbm
 
 ```bash
 # change the maximum number of epochs
-python run.py max_epochs=200
+python run_trn_val_tst.py max_epochs=200
 ```
 </details>
 
@@ -478,10 +516,10 @@ python run.py max_epochs=200
 
 ```bash
 # train on CPU
-python run.py trainer=cpu
+python run_trn_val_tst.py trainer=cpu
 
 # train on GPU
-python run.py trainer=gpu
+python run_trn_val_tst.py trainer=gpu
 ```
 </details>
 
@@ -498,7 +536,7 @@ wandb:
 
 ```bash
 # train model with Weights&Biases (link to wandb dashboard should appear in the terminal)
-python run.py logger=wandb
+python run_trn_val_tst.py logger=wandb
 ```
 > **Note**: Using wandb requires you to [setup account](https://www.wandb.com/) first.
 </details>
@@ -510,7 +548,7 @@ python run.py logger=wandb
 ```bash
 # this will run 6 experiments one after the other,
 # each with different combination of learning rate and min data in leaf in LightGBM model
-python run.py --multirun model=lightgbm model.learning_rate=0.1,0.05,0.01 model.min_data_in_leaf=5,10
+python run_trn_val_tst.py --multirun model=lightgbm model.learning_rate=0.1,0.05,0.01 model.min_data_in_leaf=5,10
 ```
 </details>
 
@@ -524,7 +562,7 @@ Hydra creates new output subdirectory in `data/models` directory for every execu
 └── data 
    └── models
        ├── elastic_net              <- Elastic Net model results                     
-       ├── lightgbm                 <- LightGBM model results     
+       ├── lightgbm_trn_val_tst        <- LightGBM model results     
        │   ├── runs                       <- Single run results
        │   │   ├── YYYY-MM-DD_HH-MM-SS          <- Datetime of the run
        │   │   │   └── *Results*                      <- Generated result files           
@@ -547,13 +585,9 @@ The following files are generated as a result:
 
 - `сv_ids.xlsx`: table showing how the samples are divided into training and validation sets in each cross-validation split.
 
-- `metrics_trn.xlsx`: values of different 
-[regression metrics](https://torchmetrics.readthedocs.io/en/stable/regression/mean_absolute_error.html) on the training set, 
-which corresponds to the best cross-validation split.
-
-- `metrics_val.xlsx`: values of different 
-[regression metrics](https://torchmetrics.readthedocs.io/en/stable/regression/mean_absolute_error.html) on the validation set, 
-which corresponds to the best cross-validation split.
+- `metrics_all_[suffix].xlsx`: values of different 
+[regression metrics](https://torchmetrics.readthedocs.io/en/stable/regression/mean_absolute_error.html) 
+on the all datasets (train, validation, test) for the best cross-validation split, identified by `[suffix]`.
 
 - `metrics_cv.xlsx`: values of different 
 [regression metrics](https://torchmetrics.readthedocs.io/en/stable/regression/mean_absolute_error.html)
@@ -567,7 +601,7 @@ You need to specify parameter `feature_importance` in the `experiment` configura
 - `feature_importances_cv.xlsx`: table with feature importances on all cross-validation splits.<br>
 You need to specify parameter `feature_importance` in the `experiment` configuration file.
 
-- `hist.pdf[png]`: figure with samples distribution into training and validation sets in the best cross-validation split.
+- `hist_[suffix].pdf[png]`: figure with samples distribution into training and validation sets in the best cross-validation split, identified by `[suffix]`.
   <details>
   <summary>Example</summary>
 
@@ -590,13 +624,15 @@ You need to specify parameter `feature_importance` in the `experiment` configura
 ### XAI result files
 
 For explaining model predictions the [SHAP](https://github.com/slundberg/shap) framework was used.
-SHAP values were calculated separately for each subset: `trn`, `val`, and `all` (all data together).<br>
+SHAP values were calculated separately for each subset: `trn`, `val`, `tst` and `all` (all data together).<br>
 The `shap` directory contains separable results for these subsets:
 ```
 └── shap 
    ├── trn                      <- Train subset
    │   └── ...  
    ├── val                      <- Validation subset
+   │   └── ...
+   ├── tst                      <- Test subset
    │   └── ...
    └── all                      <- All data together (train and validation)
        ├── shap.xlsx                <- Table with SHAP values

@@ -47,9 +47,9 @@ hydra:
     # define range of hyperparameters
     params:
       model.optimizer_lr: tag(log, interval(0.00001, 1))
-      model.optimizer_weight_decay: tag(log, interval(0.0000001, 0.01))
+      model.optimizer_weight_decay: tag(log, interval(0.00000001, 0.001))
       model.n_steps: choice(2, 3, 4, 5)
-      model.attn_dim: choice(2, 4, 8, 12, 16, 20)
+      model.attn_dim: range(1, 50, step=1)
       model.dropout: interval(0.0, 0.2)
       model.n_glu_step_dependent: choice(1, 2, 3)
       model.n_glu_shared: choice(2, 3, 4)

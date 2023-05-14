@@ -6,8 +6,8 @@ task: regression
 loss_type: "L1Loss"
 input_dim: ${in_dim}
 output_dim: ${out_dim}
-optimizer_lr: 0.01
-optimizer_weight_decay: 0.0
+optimizer_lr: 0.003
+optimizer_weight_decay: 1e-6
 scheduler_step_size: 100
 scheduler_gamma: 0.8
 column_idx: null
@@ -28,19 +28,20 @@ embed_dim: 64
 kv_compression_factor: 0.5
 kv_sharing: False
 use_qkv_bias: False
-n_heads: 16
-n_blocks: 2
-attn_dropout: 0.2
-ff_dropout: 0.2
+n_heads: 32
+n_blocks: 8
+attn_dropout: 0.04
+ff_dropout: 0.125
 transformer_activation: "reglu"
 ff_factor: 1.3
 mlp_hidden_dims:
+  - 400
   - 200
   - 100
   - 50
   - ${out_dim}
 mlp_activation: "relu"
-mlp_dropout: 0.05
+mlp_dropout: 0.015
 mlp_batchnorm: False
 mlp_batchnorm_last: False
 mlp_linear_first: True

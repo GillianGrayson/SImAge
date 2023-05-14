@@ -7,22 +7,20 @@ from omegaconf import DictConfig
 from pytorch_lightning import seed_everything
 from src.datamodules.tabular import TabularDataModule
 from src.utils import utils
-import statsmodels.formula.api as smf
+import matplotlib.pyplot as plt
+import seaborn as sns
 import xgboost as xgb
-import plotly.graph_objects as go
-from src.utils.plot.save import save_figure
-from src.utils.plot.layout import add_layout
 from src.tasks.routines import eval_regression
 from catboost import CatBoost
-from src.utils.plot.scatter import add_scatter_trace
 import plotly.express as px
 from src.tasks.regression.shap import explain_shap
-from scipy.stats import mannwhitneyu
+from src.models.tabular.base import get_model_framework_dict
+import pickle
 
 
 log = utils.get_logger(__name__)
 
-def inference(config: DictConfig):
+def inference_regression(config: DictConfig):
 
     if "seed" in config:
         seed_everything(config.seed)
@@ -30,13 +28,17 @@ def inference(config: DictConfig):
     if 'wandb' in config.logger:
         config.logger.wandb["project"] = config.project_name
 
+    model_framework_dict = get_model_framework_dict()
+    model_framework = model_framework_dict[config.model.name]
+
     # Init Lightning datamodule for test
     log.info(f"Instantiating datamodule <{config.datamodule._target_}>")
     datamodule: TabularDataModule = hydra.utils.instantiate(config.datamodule)
-    feature_names = datamodule.get_feature_names()
-    num_features = len(feature_names['all'])
+    features = datamodule.get_features()
+    num_features = len(features['all'])
     config.in_dim = num_features
-    target_name = datamodule.get_target()
+    target = datamodule.target
+    target_label = datamodule.target_label
     df = datamodule.get_data()
 
     df = df[df[config.data_part_column].notna()]
@@ -50,24 +52,24 @@ def inference(config: DictConfig):
     colors = {}
     for data_part_id, data_part in enumerate(data_parts):
         indexes[data_part] = df.loc[df[config.data_part_column] == data_part, :].index.values
-        X[data_part] = df.loc[indexes[data_part], feature_names['all']].values
-        y[data_part] = df.loc[indexes[data_part], target_name].values
+        X[data_part] = df.loc[indexes[data_part], features['all']].values
+        y[data_part] = df.loc[indexes[data_part], target].values
         colors[data_part] = px.colors.qualitative.Light24[data_part_id]
 
-    if config.model_framework == "pytorch":
-        config.model = config[config.model_type]
-
+    if model_framework == "pytorch":
         widedeep = datamodule.get_widedeep()
         embedding_dims = [(x[1], x[2]) for x in widedeep['cat_embed_input']] if widedeep['cat_embed_input'] else []
-        if config.model_type.startswith('widedeep'):
+        categorical_cardinality = [x[1] for x in widedeep['cat_embed_input']] if widedeep['cat_embed_input'] else []
+        if config.model.name.startswith('widedeep'):
             config.model.column_idx = widedeep['column_idx']
             config.model.cat_embed_input = widedeep['cat_embed_input']
             config.model.continuous_cols = widedeep['continuous_cols']
-        elif config.model_type.startswith('pytorch_tabular'):
-            config.model.continuous_cols = feature_names['con']
-            config.model.categorical_cols = feature_names['cat']
+        elif config.model.name.startswith('pytorch_tabular'):
+            config.model.continuous_cols = features['con']
+            config.model.categorical_cols = features['cat']
             config.model.embedding_dims = embedding_dims
-        elif config.model_type == 'nam':
+            config.model.categorical_cardinality = categorical_cardinality
+        elif config.model.name == 'nam':
             num_unique_vals = [len(np.unique(X[data_part_main][:, i])) for i in range(X[data_part_main].shape[1])]
             num_units = [min(config.model.num_basis_functions, i * config.model.units_multiplier) for i in num_unique_vals]
             config.model.num_units = num_units
@@ -83,28 +85,28 @@ def inference(config: DictConfig):
 
         def predict_func(X):
             batch = {
-                'all': torch.from_numpy(np.float32(X[:, feature_names['all_ids']])),
-                'continuous': torch.from_numpy(np.float32(X[:, feature_names['con_ids']])),
-                'categorical': torch.from_numpy(np.float32(X[:, feature_names['cat_ids']])),
+                'all': torch.from_numpy(np.float32(X[:, features['all_ids']])),
+                'continuous': torch.from_numpy(np.float32(X[:, features['con_ids']])),
+                'categorical': torch.from_numpy(np.int32(X[:, features['cat_ids']])),
             }
             tmp = model(batch)
             return tmp.cpu().detach().numpy()
 
-    elif config.model_framework == "stand_alone":
-        if config.model_type == "xgboost":
+    elif model_framework == "stand_alone":
+        if config.model.name == "xgboost":
             model = xgb.Booster()
             model.load_model(config.path_ckpt)
 
             for data_part in data_parts:
-                dmat = xgb.DMatrix(X[data_part], y[data_part], feature_names=feature_names['all'])
+                dmat = xgb.DMatrix(X[data_part], y[data_part], feature_names=features['all'], enable_categorical=True)
                 y_pred[data_part] = model.predict(dmat)
 
             def predict_func(X):
-                X = xgb.DMatrix(X, feature_names=feature_names['all'])
+                X = xgb.DMatrix(X, feature_names=features['all'], enable_categorical=True)
                 y = model.predict(X)
                 return y
 
-        elif config.model_type == "catboost":
+        elif config.model.name == "catboost":
             model = CatBoost()
             model.load_model(config.path_ckpt)
 
@@ -112,10 +114,12 @@ def inference(config: DictConfig):
                 y_pred[data_part] = model.predict(X[data_part]).astype('float32')
 
             def predict_func(X):
+                X = pd.DataFrame(data=X, columns=features["all"])
+                X[features["cat"]] = X[features["cat"]].astype('int32')
                 y = model.predict(X)
                 return y
 
-        elif config.model_type == "lightgbm":
+        elif config.model.name == "lightgbm":
             model = lgb.Booster(model_file=config.path_ckpt)
 
             for data_part in data_parts:
@@ -125,100 +129,93 @@ def inference(config: DictConfig):
                 y = model.predict(X, num_iteration=model.best_iteration)
                 return y
 
+        elif config.model.name == "elastic_net":
+            model = pickle.load(open(config.path_ckpt, 'rb'))
+
+            for data_part in data_parts:
+                y_pred[data_part] = model.predict(X[data_part]).astype('float32')
+            def predict_func(X):
+                y = model.predict(X)
+                return y
+
         else:
-            raise ValueError(f"Model {config.model_type} is not supported")
+            raise ValueError(f"Model {config.model.name} is not supported")
 
     else:
-        raise ValueError(f"Unsupported model_framework: {config.model_framework}")
+        raise ValueError(f"Unsupported model_framework: {model_framework}")
 
     for data_part in data_parts:
-        df.loc[indexes[data_part], "Estimation"] = y_pred[data_part]
+        df.loc[indexes[data_part], "Prediction"] = y_pred[data_part]
         eval_regression(config, y[data_part], y_pred[data_part], None, data_part, is_log=False, is_save=True, file_suffix=f"")
+    df["Prediction error"] = df['Prediction'] - df[f"{target}"]
+    df["Prediction error abs"] = df["Prediction error"].abs()
 
-    formula = f"Estimation ~ {target_name}"
-    model_linear = smf.ols(formula=formula, data=df.loc[indexes[data_part_main], :]).fit()
-    fig = go.Figure()
+    df_fig = df.loc[:, [target, 'Prediction', "Prediction error"]].copy()
     for data_part in data_parts:
-        df.loc[indexes[data_part], "Estimation acceleration"] = df.loc[indexes[data_part], "Estimation"].values - model_linear.predict(df.loc[indexes[data_part], :])
-        if data_part == data_part_main:
-            add_scatter_trace(fig, df.loc[indexes[data_part], target_name].values, df.loc[indexes[data_part], "Estimation"].values, data_part)
-            add_scatter_trace(fig, df.loc[indexes[data_part], target_name].values, model_linear.fittedvalues.values, "", "lines")
-        else:
-            add_scatter_trace(fig, df.loc[indexes[data_part], target_name].values, df.loc[indexes[data_part], "Estimation"].values, data_part)
-    add_layout(fig, target_name, f"Estimation", f"")
-    fig.update_layout({'colorway': [colors[data_part_main]] + [colors[data_part] for data_part in data_parts]})
-    fig.update_layout(legend_font_size=20)
-    fig.update_layout(margin=go.layout.Margin(l=90, r=20, b=80, t=65, pad=0))
-    save_figure(fig, f"scatter")
-
-    fig = go.Figure()
-    dist_num_bins = 15
-    df_mw = pd.DataFrame(data=np.zeros(shape=(len(data_parts) - 1, 2)),index=list(set(data_parts) - set([data_part_main])), columns=["stat", "pval"])
-    for data_part in data_parts:
-        fig.add_trace(
-            go.Violin(
-                y=df.loc[indexes[data_part], "Estimation acceleration"].values,
-                name=data_part,
-                box_visible=True,
-                meanline_visible=True,
-                showlegend=True,
-                line_color='black',
-                fillcolor=colors[data_part],
-                marker=dict(color=colors[data_part], line=dict(color='black', width=0.3), opacity=0.8),
-                points='all',
-                bandwidth=np.ptp(df.loc[indexes[data_part], "Estimation acceleration"].values) / dist_num_bins,
-                opacity=0.8
-            )
-        )
-        add_layout(fig, "", "Estimation acceleration", f"")
-
-
-        if data_part != data_part_main:
-            df_mw.at[data_part, "stat"], df_mw.at[data_part, "pval"] = mannwhitneyu(
-                df.loc[indexes[data_part_main], "Estimation acceleration"].values,
-                df.loc[indexes[data_part], "Estimation acceleration"].values,
-                alternative='two-sided'
-            )
-
-    fig.update_layout(title_xref='paper')
-    fig.update_layout(legend_font_size=20)
-    fig.update_layout(
-        margin=go.layout.Margin(
-            l=110,
-            r=20,
-            b=50,
-            t=90,
-            pad=0
-        )
+        df_fig.loc[indexes[data_part], 'Part'] = data_part
+    plt.figure()
+    sns.set_theme(style='whitegrid')
+    xy_min = df_fig[[target, 'Prediction']].min().min()
+    xy_max = df_fig[[target, 'Prediction']].max().max()
+    xy_ptp = xy_max - xy_min
+    scatter = sns.scatterplot(
+        data=df_fig,
+        x=target,
+        y="Prediction",
+        hue="Part",
+        palette=colors,
+        linewidth=0.3,
+        alpha=0.75,
+        edgecolor="k",
+        s=25,
+        hue_order=list(colors.keys())
     )
-    fig.update_layout(
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.25,
-            xanchor="center",
-            x=0.5
-        )
+    scatter.set_xlabel(target_label)
+    scatter.set_ylabel("Prediction")
+    scatter.set_xlim(xy_min - 0.1 * xy_ptp, xy_max + 0.1 * xy_ptp)
+    scatter.set_ylim(xy_min - 0.1 * xy_ptp, xy_max + 0.1 * xy_ptp)
+    plt.gca().plot(
+        [xy_min - 0.1 * xy_ptp, xy_max + 0.1 * xy_ptp],
+        [xy_min - 0.1 * xy_ptp, xy_max + 0.1 * xy_ptp],
+        color='k',
+        linestyle='dashed',
+        linewidth=1
     )
-    save_figure(fig, f"violin")
-    df_mw.to_excel("df_mw.xlsx", index=True)
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.savefig(f"scatter.png", bbox_inches='tight', dpi=400)
+    plt.savefig(f"scatter.pdf", bbox_inches='tight')
+    plt.close()
+
+    plt.figure()
+    sns.set_theme(style='whitegrid')
+    violin = sns.violinplot(
+        data=df_fig,
+        x="Part",
+        y='Prediction error',
+        palette=colors,
+        scale='width',
+        order=list(colors.keys()),
+        saturation=0.75,
+    )
+    plt.savefig(f"violin.png", bbox_inches='tight', dpi=400)
+    plt.savefig(f"violin.pdf", bbox_inches='tight')
+    plt.close()
 
     df['ids'] = np.arange(df.shape[0])
-    ids = {'all': df['ids']}
+    ids = {}
     for data_part in data_parts:
         ids[data_part] = df.loc[indexes[data_part], 'ids'].values
+    ids['all'] = df['ids']
 
     expl_data = {
         'model': model,
         'predict_func': predict_func,
         'df': df,
-        'feature_names': feature_names['all'],
-        'target_name': target_name,
+        'features': features,
+        'target': target,
         'ids': ids
     }
     if config.is_shap == True:
         explain_shap(config, expl_data)
 
     df.to_excel("df.xlsx", index=True)
-
-

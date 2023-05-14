@@ -15,12 +15,13 @@ dotenv.load_dotenv(override=True)
 # https://github.com/ashleve/pyrootutils
 root = pyrootutils.setup_root(__file__, dotenv=True, pythonpath=True)
 
-@hydra.main(config_path="configs/", config_name="main.yaml", version_base="1.1")
+
+@hydra.main(config_path="configs/", config_name="inference.yaml")
 def main(config: DictConfig):
 
     # Imports should be nested inside @hydra.main to optimize tab completion
     # Read more here: https://github.com/facebookresearch/hydra/issues/934
-    from src.tasks.regression.trn_val_tst import process_regression
+    from src.tasks.regression.inference import inference_regression
     from src.utils import utils
     import torch
 
@@ -42,7 +43,7 @@ def main(config: DictConfig):
         print('CUDA Device Name:', torch.cuda.get_device_name(0))
         print('CUDA Device Total Memory [GB]:', torch.cuda.get_device_properties(0).total_memory / 1024**3)
 
-    return process_regression(config)
+    return inference_regression(config)
 
 
 if __name__ == "__main__":

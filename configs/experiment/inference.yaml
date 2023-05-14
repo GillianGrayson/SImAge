@@ -1,0 +1,34 @@
+# @package _global_
+
+# Global params
+seed: 1337          # Random seed
+target: "Age"       # Target column name
+
+# Inference params
+path_ckpt: "${base_dir}/SImAge.ckpt"  # Path to mode;
+data_part_column: "Split"             # Column with datasets
+data_part_main: "trn_val"             # Main dataset
+
+# Data params
+in_dim: 10      # Number of input features
+out_dim: 1      # Output dimension
+embed_dim: 16   # Default embedding dimension
+
+# Info params
+print_config: False         # Print config?
+
+# Directories and files params
+project_name: ${model.name}_inference
+base_dir: "${oc.env:PROJECT_ROOT}/data"
+data_dir: "${base_dir}"
+work_dir: "${base_dir}/models/${project_name}"
+
+# SHAP values params
+is_shap: True                 # Calculate SHAP values?
+is_shap_save: True            # Save SHAP values?
+shap_explainer: Sampling      # Type of explainer. Options: ["Tree", "Kernel", "Deep", "Sampling"]
+shap_bkgrd: trn_val           # Type of background data. Options: ["trn_val"]
+
+# Plot params
+num_top_features: 100  # Number of most important features to plot
+num_examples: 1000       # Number of samples or features examples to plot some SHAP figures

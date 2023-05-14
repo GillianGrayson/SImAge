@@ -1,0 +1,35 @@
+# @package _global_
+
+# specify here defaults
+defaults:
+  - _self_
+  - experiment: inference        # Global parameters of experiment
+  - datamodule: tabular          # Information about dataset
+  - trainer: null                # Run configuration for DNN models
+  - callbacks: null              # Callbacks for DNN models
+  - logger: none                 # Loggers for DNN models
+  - hydra: default               # Output paths for logs
+
+  # Models options:
+  # Linear:
+  #   elastic_net
+  # GBDT:
+  #   xgboost
+  #   lightgbm
+  #   catboost
+  # DNN:
+  #   widedeep_tab_mlp
+  #   widedeep_tab_net
+  #   widedeep_ft_transformer
+  #   widedeep_saint
+  #   pytorch_tabular_autoint
+  #   pytorch_tabular_tabnet
+  #   pytorch_tabular_node
+  #   nam
+  #   danet
+  - model: widedeep_ft_transformer        # Model
+  - hparams_search: null                  # Model-specific hyperparameters
+
+  # Enable color logging
+  - override hydra/hydra_logging: colorlog
+  - override hydra/job_logging: colorlog

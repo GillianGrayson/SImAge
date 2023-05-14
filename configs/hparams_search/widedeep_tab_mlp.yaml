@@ -3,10 +3,6 @@
 defaults:
   - override /hydra/sweeper: optuna
 
-# choose metric which will be optimized by Optuna
-optimized_metric: "mean_absolute_error"
-optimized_mean: "cv_mean"
-
 # here we define Optuna hyperparameter search
 # it optimizes for value returned from function with @hydra.main decorator
 # docs: https://hydra.cc/docs/plugins/optuna_sweeper/
@@ -28,7 +24,7 @@ hydra:
     direction: minimize
 
     # total number of runs that will be executed
-    n_trials: 200
+    n_trials: 1000
 
     # choose Optuna hyperparameter sampler
     # docs: https://optuna.readthedocs.io/en/stable/reference/samplers/index.html
@@ -47,8 +43,8 @@ hydra:
     # define range of hyperparameters
     params:
       model.optimizer_lr: tag(log, interval(0.00001, 1))
-      model.optimizer_weight_decay: tag(log, interval(0.00000001, 0.1))
+      model.optimizer_weight_decay: tag(log, interval(0.00000001, 0.001))
       model.mlp_hidden_dims: choice([200, 100, 1], [100, 50, 1], [200, 100, 50, 1], [400, 200, 100, 1], [400, 200, 100, 50, 1])
       model.mlp_activation: choice('relu', 'gelu', 'leaky_relu')
-      model.mlp_dropout: choice(0.05, 0.1, 0.15)
+      model.mlp_dropout: interval(0.0, 0.2)
       model.mlp_linear_first: choice(False, True)

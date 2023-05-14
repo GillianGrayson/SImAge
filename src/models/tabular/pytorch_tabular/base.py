@@ -21,8 +21,8 @@ class PTBaseModel(BaseModel):
     def forward(self, batch):
         if not isinstance(batch, dict):
             x = {
-                "continuous": batch[:, self.feats_con_ids],
-                "categorical": batch[:, self.feats_cat_ids],
+                "continuous": batch[:, self.feats_con_ids].type(torch.float32),
+                "categorical": batch[:, self.feats_cat_ids].type(torch.int32),
             }
         else:
             x = batch
